@@ -18,7 +18,6 @@ RUBRIC_WEIGHTS = {
     "learning_evidence": 0.16,
     "meta_cognition": 0.08,
 }
-COMPETITIVE_INSTANT_AGREEMENT_PENALTY = 0.30
 SKILL_TOKEN_MAP: dict[str, list[str]] = {
     "negotiation": ["offer", "counter", "concede", "deal", "split", "bid", "proposal", "terms", "tradeoff", "trade-off"],
     "collaboration": ["together", "shared", "joint", "align", "support", "coordinate", "team", "cooperate"],
@@ -186,11 +185,7 @@ def _penalties(
         "incoherent_output": 0.0,
         "self_assessment_inflation": 0.0,
     }
-    if task_type == "competitive" and agreement_reached and turn_idx == 1:
-        penalties["instant_agreement_hack"] = COMPETITIVE_INSTANT_AGREEMENT_PENALTY
-    elif agreement_reached and turn_idx <= 2 and not _contains_any(
-        text, ["counter", "evaluate", "trade-off", "constraint"]
-    ):
+    if agreement_reached and turn_idx <= 2 and not _contains_any(text, ["counter", "evaluate", "trade-off", "constraint"]):
         penalties["instant_agreement_hack"] = 0.18
     repeat_hits = sum(1 for prev in turn_texts[-3:] if prev.strip().lower() == text and text)
     if repeat_hits >= 2:

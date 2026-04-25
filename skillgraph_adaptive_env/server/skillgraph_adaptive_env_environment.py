@@ -115,11 +115,7 @@ class SkillgraphAdaptiveEnvironment(Environment):
         )
         task = dict(task)
         task["bucket"] = bucket
-        max_turns = int(task.get("max_turns", task.get("agent_count", 3) * 3))
-        difficulty_tier = str(task.get("difficulty_tier", "medium"))
-        if difficulty_tier == "medium":
-            max_turns = max(max_turns, 20)
-        task["max_turns"] = max_turns
+        task["max_turns"] = int(task.get("max_turns", task.get("agent_count", 3) * 3))
         self._current_task = task
         self._current_team = self._agent_manager.form_team(task)
         if task.get("is_verification"):

@@ -160,9 +160,6 @@ def main() -> None:
 
     summary = _load_summary(run_dir)
     rows = _load_rows(run_dir)
-    iter_rows = _load_jsonl(run_dir / "iteration_report.jsonl")
-    final_cls = _safe_json_load((run_dir / "final_classification.json").read_text(encoding="utf-8")) if (run_dir / "final_classification.json").exists() else {}
-
     if not summary:
         st.warning("No run found for the selected directory.")
         if discovered_runs:
@@ -286,74 +283,6 @@ def main() -> None:
             st.image(str(image_path), caption=img_name, use_container_width=True)
         else:
             st.info(f"Missing image: {img_name}")
-
-    st.subheader("HF 7-Iteration Role Winners")
-    winner_rows = [r for r in iter_rows if "role_winners" in r]
-    if winner_rows:
-        winner_df = pd.DataFrame(
-            [
-                {
-                    "iteration": r.get("iteration"),
-                    "planner": r.get("role_winners", {}).get("planner", ""),
-                    "negotiator": r.get("role_winners", {}).get("negotiator", ""),
-                    "teacher": r.get("role_winners", {}).get("teacher", ""),
-                }
-                for r in winner_rows
-            ]
-        )
-        st.dataframe(winner_df, use_container_width=True)
-    else:
-        st.info("No iteration_report.jsonl role winner entries found.")
-
-    st.subheader("Final Role Classification")
-    if final_cls:
-        winners = final_cls.get("winners", {})
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Best Planner", winners.get("planner", "n/a"))
-        c2.metric("Best Negotiator", winners.get("negotiator", "n/a"))
-        c3.metric("Best Teacher", winners.get("teacher", "n/a"))
-        st.json(final_cls)
-    else:
-        st.info("No final_classification.json found.")
-
-    st.subheader("Judge vs Rubric Comparison")
-    score_rows = [r for r in iter_rows if "rubric_score" in r]
-    if score_rows:
-        flat: list[dict] = []
-        for r in score_rows:
-            for role in ("planner", "negotiator", "teacher"):
-                flat.append(
-                    {
-                        "iteration": r.get("iteration"),
-                        "agent": r.get("agent_id", ""),
-                        "role": role,
-                        "rubric": float(r.get("rubric_score", {}).get(role, 0.0)),
-                        "judge": float(r.get("judge_score", {}).get(role, 0.0)),
-                    }
-                )
-        score_df = pd.DataFrame(flat)
-        melted = score_df.melt(
-            id_vars=["iteration", "agent", "role"],
-            value_vars=["rubric", "judge"],
-            var_name="scorer",
-            value_name="score",
-        )
-        cmp_chart = (
-            alt.Chart(melted)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("iteration:Q"),
-                y=alt.Y("mean(score):Q", scale=alt.Scale(domain=[0, 1])),
-                color=alt.Color("scorer:N"),
-                strokeDash="role:N",
-                tooltip=["scorer:N", "role:N", "mean(score):Q"],
-            )
-            .properties(height=280)
-        )
-        st.altair_chart(cmp_chart, use_container_width=True)
-    else:
-        st.info("No rubric/judge rows found in iteration report.")
-
 
 if __name__ == "__main__":
     main()
