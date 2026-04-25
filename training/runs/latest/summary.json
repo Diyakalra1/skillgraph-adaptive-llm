@@ -1,0 +1,10 @@
+{
+  "timestamp": "2026-04-25T10:29:01.210949",
+  "episodes": 30,
+  "seed": 7,
+  "mode": "simulation",
+  "avg_reward": 0.2611,
+  "success_rate": 0.4,
+  "csv_path": "training\\runs\\latest\\episode_logs.csv",
+  "jsonl_path": "training\\runs\\latest\\episode_logs.jsonl"
+}

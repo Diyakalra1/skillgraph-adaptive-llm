@@ -4,7 +4,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
 
-"""Skillgraph Adaptive Env Environment Client."""
+"""SkillGraph adaptive environment client."""
 
 from typing import Dict
 
@@ -55,7 +55,9 @@ class SkillgraphAdaptiveEnv(
             Dictionary representation suitable for JSON encoding
         """
         return {
-            "message": action.message,
+            "task_id": action.task_id,
+            "response_text": action.response_text,
+            "self_rating": action.self_rating,
         }
 
     def _parse_result(self, payload: Dict) -> StepResult[SkillgraphAdaptiveObservation]:
@@ -70,8 +72,14 @@ class SkillgraphAdaptiveEnv(
         """
         obs_data = payload.get("observation", {})
         observation = SkillgraphAdaptiveObservation(
-            echoed_message=obs_data.get("echoed_message", ""),
-            message_length=obs_data.get("message_length", 0),
+            task_id=obs_data.get("task_id", ""),
+            task_prompt=obs_data.get("task_prompt", ""),
+            task_skills=obs_data.get("task_skills", []),
+            task_difficulty=obs_data.get("task_difficulty", 0.0),
+            curriculum_bucket=obs_data.get("curriculum_bucket", ""),
+            success=obs_data.get("success", False),
+            reward_breakdown=obs_data.get("reward_breakdown", {}),
+            skill_snapshot=obs_data.get("skill_snapshot", {}),
             done=payload.get("done", False),
             reward=payload.get("reward"),
             metadata=obs_data.get("metadata", {}),
