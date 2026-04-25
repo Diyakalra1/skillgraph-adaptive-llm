@@ -13,6 +13,8 @@ class CurriculumEngine:
     def __init__(self, task_library: TaskLibrary, seed: int = 7) -> None:
         self._task_library = task_library
         self._rng = random.Random(seed)
+        self._max_same_task_streak = 2
+        self._recent_task_ids: list[str] = []
         self._diagnostic_order = [
             "collaborative",
             "competitive",
@@ -21,12 +23,42 @@ class CurriculumEngine:
             "debate",
         ]
         self._verification_order = [
-            "peer_teaching",
             "competitive",
             "collaborative",
             "debate",
             "mixed_motive",
         ]
+
+    def _record_task(self, task_id: str) -> None:
+        self._recent_task_ids.append(task_id)
+        if len(self._recent_task_ids) > 12:
+            self._recent_task_ids = self._recent_task_ids[-12:]
+
+    def _same_task_streak(self, task_id: str) -> int:
+        streak = 0
+        for previous in reversed(self._recent_task_ids):
+            if previous != task_id:
+                break
+            streak += 1
+        return streak
+
+    def _apply_diversity_guard(self, chosen: dict, preferred_candidates: list[dict], bucket: str) -> dict:
+        chosen_id = str(chosen.get("id", ""))
+        if not chosen_id or self._same_task_streak(chosen_id) < self._max_same_task_streak:
+            return chosen
+        bucket_level = {"easy": 2.0, "medium": 3.0, "hard": 4.5}.get(bucket, 3.0)
+        preferred_alts = [c for c in preferred_candidates if c.get("id") != chosen_id]
+        if preferred_alts:
+            return self._rng.choice(preferred_alts)
+        bucket_alts = [
+            task
+            for task in self._task_library.all_tasks()
+            if self._difficulty_match(task, bucket_level, bucket)
+            and task.get("id") != chosen_id
+        ]
+        if bucket_alts:
+            return self._rng.choice(bucket_alts)
+        return chosen
 
     def _difficulty_bucket(self, level_0_to_5: float) -> str:
         if level_0_to_5 < 2.5:
@@ -69,12 +101,16 @@ class CurriculumEngine:
             candidates = [task for task in self._task_library.all_tasks() if self._difficulty_match(task, weakest_level, bucket)]
         if not candidates:
             candidates = self._task_library.all_tasks()
-        return self._rng.choice(candidates), bucket
+        chosen = self._rng.choice(candidates)
+        chosen = self._apply_diversity_guard(chosen, candidates, bucket)
+        return chosen, bucket
 
     def choose_task(self, weakest_skills: list[str], weakest_level: float) -> tuple[dict, str]:
         weak_skill = weakest_skills[0] if weakest_skills else "collaboration"
         task, bucket = self._select_regular_task(weak_skill, weakest_level)
-        return self._task_library.instantiate_task(task["id"]), bucket
+        task_id = task["id"]
+        self._record_task(task_id)
+        return self._task_library.instantiate_task(task_id), bucket
 
     def choose_task_for_iteration(
         self,
@@ -97,7 +133,9 @@ class CurriculumEngine:
         # Cold start diagnostics: fixed medium tasks, no randomization.
         if episode_idx <= len(self._diagnostic_order):
             task_type = self._diagnostic_order[episode_idx - 1]
-            return self._task_library.fixed_diagnostic_variant(task_type), "cold_start_diagnostic"
+            task = self._task_library.fixed_diagnostic_variant(task_type)
+            self._record_task(task["id"])
+            return task, "cold_start_diagnostic"
 
         # Surprise fixed solo verification every 20 episodes.
         if episode_idx % 20 == 0:
@@ -105,12 +143,14 @@ class CurriculumEngine:
             task_type = self._verification_order[order_idx]
             task = self._task_library.fixed_diagnostic_variant(task_type)
             task["is_verification"] = True
+            self._record_task(task["id"])
             return task, "verification_check"
 
         anchor = agent_skill_scores.get(anchor_agent_id, {})
         weak_skill, weak_level = self._confidence_weighted_weak_skill(anchor)
         task, bucket = self._select_regular_task(weak_skill, weak_level)
         task = self._task_library.instantiate_task(task["id"], episode_idx=episode_idx)
+        self._record_task(task["id"])
         task["target_skill"] = weak_skill
         return task, f"weak_skill_{bucket}"
 

@@ -12,25 +12,26 @@ from .model_runtime import HfModelRuntime
 
 ROLE_KEYS = ("planner", "negotiator", "teacher")
 RUBRIC_WEIGHTS = {
-    "task_success": 0.30,
-    "skill_demo": 0.25,
-    "collab_quality": 0.20,
-    "learning_evidence": 0.15,
-    "meta_cognition": 0.10,
+    "task_success": 0.24,
+    "skill_demo": 0.31,
+    "collab_quality": 0.21,
+    "learning_evidence": 0.16,
+    "meta_cognition": 0.08,
 }
+COMPETITIVE_INSTANT_AGREEMENT_PENALTY = 0.30
 SKILL_TOKEN_MAP: dict[str, list[str]] = {
-    "negotiation": ["offer", "counter", "concede", "deal", "split", "bid"],
-    "collaboration": ["together", "shared", "joint", "align", "support"],
-    "strategic_reasoning": ["strategy", "risk", "trade-off", "scenario", "long-term"],
-    "information_synthesis": ["evidence", "synthesize", "integrate", "source", "summary"],
-    "communication": ["explain", "clarify", "because", "example", "question"],
-    "meta_learning": ["reflect", "revise", "improve", "feedback", "adapt"],
-    "communication_clarity": ["explain", "clarify", "because", "example", "question"],
-    "competitive_strategy": ["offer", "counter", "reserve", "utility", "win"],
-    "opponent_modeling": ["you value", "your priority", "opponent", "likely"],
-    "risk_assessment": ["risk", "failure", "contingency", "uncertain"],
-    "problem_decomposition": ["step", "milestone", "breakdown", "plan"],
-    "argumentation": ["claim", "premise", "rebuttal", "logic"],
+    "negotiation": ["offer", "counter", "concede", "deal", "split", "bid", "proposal", "terms", "tradeoff", "trade-off"],
+    "collaboration": ["together", "shared", "joint", "align", "support", "coordinate", "team", "cooperate"],
+    "strategic_reasoning": ["strategy", "risk", "trade-off", "scenario", "long-term", "contingency", "fallback", "priority"],
+    "information_synthesis": ["evidence", "synthesize", "integrate", "source", "summary", "combine", "insight", "finding"],
+    "communication": ["explain", "clarify", "because", "example", "question", "rationale", "therefore"],
+    "meta_learning": ["reflect", "revise", "improve", "feedback", "adapt", "iteration", "update", "learned"],
+    "communication_clarity": ["explain", "clarify", "because", "example", "question", "rationale"],
+    "competitive_strategy": ["offer", "counter", "reserve", "utility", "win", "maximize", "leverage"],
+    "opponent_modeling": ["you value", "your priority", "opponent", "likely", "your constraint", "your objective"],
+    "risk_assessment": ["risk", "failure", "contingency", "uncertain", "downside", "mitigate"],
+    "problem_decomposition": ["step", "milestone", "breakdown", "plan", "phase", "sequence"],
+    "argumentation": ["claim", "premise", "rebuttal", "logic", "counterpoint", "evidence"],
 }
 
 
@@ -106,32 +107,35 @@ def _contains_any(text: str, tokens: list[str]) -> bool:
 
 def _task_success_score(outcome: dict) -> float:
     agreed = 1.0 if outcome.get("agreement_reached", False) else 0.0
+    quality = float(outcome.get("quality", 0.0))
     turns_used = float(outcome.get("turns_used", 0))
     max_turns = float(max(1, int(outcome.get("max_turns", 1))))
     efficiency = max(0.0, 1.0 - (turns_used / max_turns))
     if not agreed:
-        return 0.0
-    return min(1.0, 0.7 * agreed + 0.3 * efficiency)
+        return round(min(0.45, 0.35 * quality + 0.10 * efficiency), 4)
+    return min(1.0, 0.6 * agreed + 0.25 * efficiency + 0.15 * quality)
 
 
 def _skill_demo_score(task_type: str, text: str) -> float:
     if task_type == "competitive":
         score = 0.0
-        score += 0.3 if _contains_any(text, ["counter", "counter-offer", "revised offer"]) else 0.0
-        score += 0.2 if _contains_any(text, ["concede", "flex", "non-priority"]) else 0.0
-        score += 0.3 if _contains_any(text, ["must-have", "non-negotiable", "required"]) else 0.0
-        score += 0.2 if _contains_any(text, ["build on", "your idea", "as you suggested"]) else 0.0
+        score += 0.28 if _contains_any(text, ["counter", "counter-offer", "revised offer", "alternative offer"]) else 0.0
+        score += 0.20 if _contains_any(text, ["concede", "flex", "non-priority", "adjust"]) else 0.0
+        score += 0.26 if _contains_any(text, ["must-have", "non-negotiable", "required", "priority"]) else 0.0
+        score += 0.16 if _contains_any(text, ["build on", "your idea", "as you suggested", "based on your"]) else 0.0
+        score += 0.10 if _contains_any(text, ["because", "therefore", "rationale"]) else 0.0
         return min(1.0, score)
     score = 0.0
-    score += 0.3 if _contains_any(text, ["?", "clarify", "can you explain"]) else 0.0
-    score += 0.3 if _contains_any(text, ["constraint", "your requirement", "your goal"]) else 0.0
-    score += 0.4 if _contains_any(text, ["proposal", "because", "therefore", "so that"]) else 0.0
+    score += 0.26 if _contains_any(text, ["?", "clarify", "can you explain", "quick check"]) else 0.0
+    score += 0.28 if _contains_any(text, ["constraint", "your requirement", "your goal", "limitation", "must"]) else 0.0
+    score += 0.28 if _contains_any(text, ["proposal", "because", "therefore", "so that", "plan"]) else 0.0
+    score += 0.18 if _contains_any(text, ["next step", "timeline", "action item", "milestone"]) else 0.0
     return min(1.0, score)
 
 
 def _collab_quality(turn_texts: list[str], current_text: str, context_refs: list[str]) -> float:
     if not turn_texts:
-        return 0.4
+        return 0.5
     repetition = max(0.0, sum(1 for t in turn_texts if t.strip().lower() == current_text.strip().lower()) / max(1, len(turn_texts)))
     has_context = 1.0 if _contains_any(current_text.lower(), context_refs) else 0.0
     lengths = [len(t.strip().split()) for t in turn_texts if t.strip()]
@@ -140,19 +144,19 @@ def _collab_quality(turn_texts: list[str], current_text: str, context_refs: list
         avg = max(1.0, mean(lengths))
         span = max(lengths) - min(lengths)
         balance = max(0.0, 1.0 - (span / (avg * 4)))
-    score = 0.4 * balance + 0.4 * has_context + 0.2 * (1.0 - repetition)
+    score = 0.35 * balance + 0.35 * has_context + 0.30 * (1.0 - repetition)
     return round(max(0.0, min(1.0, score)), 4)
 
 
 def _learning_evidence(turn_idx: int, turn_texts: list[str], current_text: str) -> float:
     if turn_idx < 5:
-        return 0.4
+        return 0.5
     if not turn_texts:
         return 0.2
     novelty = 0.0
     if all(current_text.strip().lower() != prev.strip().lower() for prev in turn_texts[-3:]):
         novelty += 0.6
-    if _contains_any(current_text.lower(), ["revise", "update", "new strategy", "alternative"]):
+    if _contains_any(current_text.lower(), ["revise", "update", "new strategy", "alternative", "adjust", "improve"]):
         novelty += 0.4
     return min(1.0, novelty)
 
@@ -182,19 +186,23 @@ def _penalties(
         "incoherent_output": 0.0,
         "self_assessment_inflation": 0.0,
     }
-    if agreement_reached and turn_idx <= 2 and not _contains_any(text, ["counter", "evaluate", "trade-off"]):
-        penalties["instant_agreement_hack"] = 0.4
+    if task_type == "competitive" and agreement_reached and turn_idx == 1:
+        penalties["instant_agreement_hack"] = COMPETITIVE_INSTANT_AGREEMENT_PENALTY
+    elif agreement_reached and turn_idx <= 2 and not _contains_any(
+        text, ["counter", "evaluate", "trade-off", "constraint"]
+    ):
+        penalties["instant_agreement_hack"] = 0.18
     repeat_hits = sum(1 for prev in turn_texts[-3:] if prev.strip().lower() == text and text)
     if repeat_hits >= 2:
-        penalties["proposal_repetition"] = 0.2
+        penalties["proposal_repetition"] = 0.08
     if context_refs and not _contains_any(text, context_refs):
-        penalties["context_ignoring"] = 0.15
+        penalties["context_ignoring"] = 0.05
     if (turn_idx >= max_turns) and not agreement_reached and task_type in {"collaborative", "mixed_motive"}:
-        penalties["timeout_failure"] = 0.3
+        penalties["timeout_failure"] = 0.12
     if len(text.strip()) < 4:
-        penalties["incoherent_output"] = 0.5
-    if (self_rating - predicted_score) > 0.3:
-        penalties["self_assessment_inflation"] = 0.2
+        penalties["incoherent_output"] = 0.18
+    if (self_rating - predicted_score) > 0.35:
+        penalties["self_assessment_inflation"] = 0.08
     return penalties
 
 
@@ -242,8 +250,8 @@ def compute_reward(
         predicted_score=scalar,
         context_refs=context_refs,
     )
-    scalar = max(0.0, scalar - sum(penalties.values()))
-    base_skill_value = round(max(0.0, min(1.0, 0.55 * skill_demo + 0.20 * learning_evidence + 0.25 * collab_quality)), 4)
+    scalar = max(0.01, scalar - sum(penalties.values()))
+    base_skill_value = round(max(0.0, min(1.0, 0.45 * skill_demo + 0.25 * learning_evidence + 0.30 * collab_quality)), 4)
     derived_matches: dict[str, float] = {}
     for skill in task_skills:
         tokens = SKILL_TOKEN_MAP.get(skill, [])

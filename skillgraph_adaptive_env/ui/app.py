@@ -11,6 +11,16 @@ import pandas as pd
 import streamlit as st
 
 
+def _discover_run_dirs(runs_root: Path) -> list[Path]:
+    """Return run directories containing summary.json, newest first."""
+    if not runs_root.exists():
+        return []
+    summaries = list(runs_root.glob("**/summary.json"))
+    summaries = [p for p in summaries if p.is_file()]
+    summaries.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return [p.parent for p in summaries]
+
+
 def _load_summary(run_dir: Path) -> dict:
     summary_path = run_dir / "summary.json"
     if not summary_path.exists():
@@ -136,8 +146,16 @@ def main() -> None:
     st.title("SkillGraph: Adaptive Curriculum Baseline")
     st.caption("Understand training behavior with clear logs + skill graphs.")
 
+    runs_root = Path("training/runs")
     default_dir = Path("training/runs/latest")
-    run_dir_input = st.text_input("Run directory", value=str(default_dir))
+    discovered_runs = _discover_run_dirs(runs_root)
+
+    if discovered_runs:
+        run_options = [str(p) for p in discovered_runs]
+        detected_choice = st.selectbox("Detected runs", options=run_options, index=0)
+        run_dir_input = st.text_input("Run directory", value=detected_choice)
+    else:
+        run_dir_input = st.text_input("Run directory", value=str(default_dir))
     run_dir = Path(run_dir_input)
 
     summary = _load_summary(run_dir)
@@ -146,7 +164,14 @@ def main() -> None:
     final_cls = _safe_json_load((run_dir / "final_classification.json").read_text(encoding="utf-8")) if (run_dir / "final_classification.json").exists() else {}
 
     if not summary:
-        st.warning("No run found yet. Run training first, then refresh this page.")
+        st.warning("No run found for the selected directory.")
+        if discovered_runs:
+            st.info(
+                "Detected run directories:\n- "
+                + "\n- ".join(str(p) for p in discovered_runs[:5])
+            )
+        else:
+            st.info("No run directories with summary.json were auto-detected under training/runs.")
         st.code("python -m skillgraph_adaptive_env.training.run_training --episodes 120")
         return
 
