@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-04-25T13:33:47.121603",
+  "episodes": 8,
+  "seed": 7,
+  "mode": "hf_three_models",
+  "model_map": {
+    "agent_alpha": "meta-llama/Llama-3.2-1B-Instruct",
+    "agent_beta": "meta-llama/Meta-Llama-3-8B-Instruct",
+    "agent_gamma": "Qwen/Qwen2.5-7B-Instruct"
+  },
+  "avg_reward": -0.295,
+  "success_rate": 0.0,
+  "csv_path": "training\\runs\\hf_three_models\\episode_logs.csv",
+  "jsonl_path": "training\\runs\\hf_three_models\\episode_logs.jsonl"
+}

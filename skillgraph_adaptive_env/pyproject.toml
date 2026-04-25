@@ -1,0 +1,40 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree.
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openenv-skillgraph_adaptive_env"
+version = "0.1.0"
+description = "Skillgraph Adaptive Env environment for OpenEnv"
+requires-python = ">=3.10"
+dependencies = [
+    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
+    # install from github
+    # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
+    "openenv-core>=0.2.2",
+    "matplotlib>=3.9.0",
+    "streamlit>=1.44.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+# Server entry point - enables running via: uv run --project . server
+# or: python -m skillgraph_adaptive_env.server.app
+server = "skillgraph_adaptive_env.server.app:main"
+train-skillgraph = "skillgraph_adaptive_env.training.run_training:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["skillgraph_adaptive_env", "skillgraph_adaptive_env.server", "skillgraph_adaptive_env.training", "skillgraph_adaptive_env.ui"]
+package-dir = { "skillgraph_adaptive_env" = ".", "skillgraph_adaptive_env.server" = "server", "skillgraph_adaptive_env.training" = "training", "skillgraph_adaptive_env.ui" = "ui" }
