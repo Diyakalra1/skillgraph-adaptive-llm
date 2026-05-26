@@ -4,9 +4,12 @@ emoji: 📈
 colorFrom: indigo
 colorTo: blue
 sdk: docker
+app_port: 8000
+python_version: "3.11"
 pinned: false
 tags:
   - openenv
+short_description: Adaptive multi-agent skill evolution OpenEnv environment
 ---
 
 # AMASES: Adaptive Multi-Agent Skill Evolution System
@@ -15,6 +18,18 @@ AMASES is a multi-agent OpenEnv environment focused on adaptive skill learning a
 
 Deployed environment:
 - [https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env](https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env)
+
+## Hugging Face Space playground
+
+When the Space is **Running**, the **App** tab shows the OpenEnv web UI:
+
+1. Click **Reset** to start a new episode (task + agents).
+2. Fill action fields (`agent_id`, `response_text`, `self_rating`, etc.) and click **Step**.
+3. Use **Get state** to inspect the current environment.
+
+The left panel has Python snippets to connect from Colab or a local client via `SkillgraphAdaptiveEnv.from_env("jeeya-ahuja05/skill-graph-adaptive-env")`.
+
+If the Space stays on **Starting**, confirm `app_port: 8000` in this README and that the container listens on `0.0.0.0:8000` (not Gradio’s default `7860`).
 
 ## Agent Setup
 
@@ -77,7 +92,27 @@ This yields per-agent divergence and measurable long-horizon development.
 - `training/run_training_three_models.py`: three-model training/evaluation pipeline
 - `ui/app.py`: Streamlit log and graph viewer
 
-## Three-Model Training (Primary Workflow)
+## TRL GRPO Training (RL Fine-Tuning)
+
+This is the reinforcement-learning training path (TRL GRPO) using rewards from your environment:
+
+```bash
+pip install -e ".[trl]"
+python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
+  --episodes 40 \
+  --seed 7 \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --out-dir training/runs/trl_grpo
+```
+
+Artifacts:
+- `grpo_dataset.json` (prompt + `env_reward` from environment)
+- `summary.json`
+- `checkpoints/final/` (fine-tuned model)
+
+Colab-friendly pins: `training/requirements-trl.txt`
+
+## Three-Model Training (HF Inference Evaluation)
 
 Run from repository root:
 
