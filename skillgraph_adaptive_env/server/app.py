@@ -36,11 +36,13 @@ except Exception as e:  # pragma: no cover
     ) from e
 
 try:
-    from ..models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
-    from .skillgraph_adaptive_env_environment import SkillgraphAdaptiveEnvironment
-except ModuleNotFoundError:
+    # Flat layout used by Docker / Hugging Face Space (/app/env root on PYTHONPATH).
     from models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
     from server.skillgraph_adaptive_env_environment import SkillgraphAdaptiveEnvironment
+except ImportError:
+    # Installed package layout: skillgraph_adaptive_env.*
+    from skillgraph_adaptive_env.models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
+    from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import SkillgraphAdaptiveEnvironment
 
 
 # Create the app with web interface and README integration

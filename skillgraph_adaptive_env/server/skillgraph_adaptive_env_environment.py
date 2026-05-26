@@ -9,14 +9,6 @@ from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
 try:
-    from ..models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
-    from .agent_manager import AgentManager
-    from .curriculum_engine import CurriculumEngine
-    from .interaction_memory import InteractionMemory
-    from .scoring import compute_reward
-    from .skill_graph import AgentSkillGraphManager
-    from .task_library import TaskLibrary
-except ImportError:
     from models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
     from server.agent_manager import AgentManager
     from server.curriculum_engine import CurriculumEngine
@@ -24,6 +16,14 @@ except ImportError:
     from server.scoring import compute_reward
     from server.skill_graph import AgentSkillGraphManager
     from server.task_library import TaskLibrary
+except ImportError:
+    from skillgraph_adaptive_env.models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
+    from skillgraph_adaptive_env.server.agent_manager import AgentManager
+    from skillgraph_adaptive_env.server.curriculum_engine import CurriculumEngine
+    from skillgraph_adaptive_env.server.interaction_memory import InteractionMemory
+    from skillgraph_adaptive_env.server.scoring import compute_reward
+    from skillgraph_adaptive_env.server.skill_graph import AgentSkillGraphManager
+    from skillgraph_adaptive_env.server.task_library import TaskLibrary
 
 
 class SkillgraphAdaptiveEnvironment(Environment):
