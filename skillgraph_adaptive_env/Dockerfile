@@ -33,8 +33,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     else \
         python -m venv /app/env/.venv && \
         /app/env/.venv/bin/pip install --upgrade pip && \
-        /app/env/.venv/bin/pip install --no-cache-dir -r requirements.txt && \
-        /app/env/.venv/bin/pip install --no-cache-dir --no-deps -e /app/env; \
+        /app/env/.venv/bin/pip install --no-cache-dir -r requirements.txt; \
     fi
 
 FROM ${BASE_IMAGE}
