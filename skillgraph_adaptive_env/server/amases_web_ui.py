@@ -55,9 +55,30 @@ AMASES_THEME = gr.themes.Soft(
 AMASES_CSS = """
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
+/* Full-width, centered layout on HF Spaces (avoids left-sidelined narrow column). */
+html, body, .gradio-container, .gradio-container .main,
+.gradio-container .wrap, .gradio-container .contain {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    box-sizing: border-box !important;
+}
 .gradio-container {
-    max-width: 1180px !important;
     font-family: 'DM Sans', 'Inter', system-ui, sans-serif !important;
+    padding: 16px clamp(16px, 3vw, 40px) 32px !important;
+}
+.amases-root {
+    width: 100% !important;
+    max-width: min(1320px, 100%) !important;
+    margin: 0 auto !important;
+}
+.amases-root > .gr-row {
+    width: 100% !important;
+    align-items: stretch !important;
+}
+.amases-root > .gr-row > .gr-column {
+    flex: 1 1 auto !important;
 }
 
 /* Hero */
@@ -479,16 +500,16 @@ def build_amases_gradio_app(
             return f"Error: {exc}"
 
     title = metadata.name if metadata else "AMASES"
-    with gr.Blocks(title=f"AMASES · {title}") as demo:
+    with gr.Blocks(title=f"AMASES · {title}", elem_classes="amases-root") as demo:
         gr.HTML(_hero_html())
-        with gr.Row(equal_height=False):
-            with gr.Column(scale=1, min_width=280, elem_classes="amases-panel"):
+        with gr.Row(equal_height=False, elem_classes="amases-main-row"):
+            with gr.Column(scale=1, min_width=300, elem_classes="amases-panel"):
                 gr.HTML(_sidebar_html())
                 if quick_start_md:
                     with gr.Accordion("Python client", open=False):
                         gr.Markdown(quick_start_md)
 
-            with gr.Column(scale=2, elem_classes="amases-panel"):
+            with gr.Column(scale=3, elem_classes="amases-panel"):
                 gr.Markdown("#### Live dashboard")
                 obs_display = gr.HTML(value=_empty_dashboard_html())
                 with gr.Group():
