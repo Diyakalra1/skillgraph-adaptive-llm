@@ -32,7 +32,7 @@ dev = [
 # Server entry point - enables running via: uv run --project . server
 # or: python -m skillgraph_adaptive_env.server.app
 server = "skillgraph_adaptive_env.server.app:main"
-train-skillgraph = "skillgraph_adaptive_env.training.run_training:main"
+train-three-models = "skillgraph_adaptive_env.training.run_training_three_models:main"
 
 [tool.setuptools]
 include-package-data = true

@@ -1,58 +1,31 @@
 # AMASES: Adaptive Multi-Agent Skill Evolution System
 
-This project now follows a multi-agent architecture with **3 model-backed agents**:
+AMASES is a multi-agent OpenEnv environment focused on adaptive skill learning across three agents, five task families, and deterministic rubric-based rewards.
+
+Deployed environment:
+- [https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env](https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env)
+
+## Agent Setup
 
 - `agent_alpha` (planner)
 - `agent_beta` (debater)
 - `agent_gamma` (integrator)
 
-The baseline environment still runs without external dependencies, and a
-dedicated 7-iteration Hugging Face runner is included for free-tier experiments.
+## Task Inventory
 
-## Fixed Task Inventory
+AMASES uses a fixed 15-task curriculum:
 
-AMASES uses a fixed 15-task adaptive curriculum:
+- Collaborative: easy, medium, hard
+- Competitive: easy, medium, hard
+- Mixed motive: easy, medium, hard
+- Peer teaching: easy, medium, hard
+- Debate: easy, medium, hard
 
-- Collaborative: easy/medium/hard
-- Competitive: easy/medium/hard
-- Mixed motive: easy/medium/hard
-- Peer teaching: easy/medium/hard
-- Debate: easy/medium/hard
+Each task has fixed logic and schema fields: `type`, `agents_needed`, `skills_tested`, `difficulty`, `max_turns`, `reward_mode`, rules, and rubric settings. Runtime variation changes scenario surface text only.
 
-Each task is hardcoded with the same structure fields:
-`type`, `agents_needed`, `skills_tested`, `difficulty (0-5)`, `max_turns`, `reward_mode`,
-`rules`, and rubric settings.
+## Reward Model
 
-Runtime variation only changes surface content (topic, budget, scenario labels); task logic does not change.
-
-## Architecture
-
-- `server/skillgraph_adaptive_env_environment.py`
-  Main OpenEnv environment, turn loop, rewards, and episode state.
-- `server/skill_graph.py`
-  Per-agent skill graph tracking, trajectories, confidence, and updates.
-- `server/task_library.py`
-  Multi-agent task types: collaborative, competitive, mixed motive, peer teaching, debate.
-- `server/agent_manager.py`
-  Agent registry and team matching.
-- `server/curriculum_engine.py`
-  Confidence-aware weakest-skill selection, cold-start diagnostics, and every-20-episode verification checks.
-- `server/model_runtime.py`
-  HF runtime wrapper with retries/backoff and error capture.
-- `server/scoring.py`
-  Deterministic rubric scorer + penalties + reward vectors + optional debate judge scoring.
-- `server/role_classifier.py`
-  Per-iteration and final role classification.
-- `models.py`
-  Action/Observation schema for multi-agent turns and arena state.
-- `training/run_training.py`
-  Training driver for multi-agent simulation and output artifacts.
-- `ui/app.py`
-  Simple Streamlit inspector for logs and generated plots.
-
-## Reward Design
-
-Per-turn reward categories:
+Per-turn score is decomposed into weighted components:
 
 - `task_success` (30%)
 - `skill_demo` (25%)
@@ -60,56 +33,55 @@ Per-turn reward categories:
 - `learning_evidence` (15%)
 - `meta_cognition` (10%)
 
-Weighted scalar reward is used by trainer loops, while per-skill vectors are used for skill-graph updates.
-Penalty hooks include instant agreement hacks, repeated proposals, context-ignoring turns, timeout failures, incoherent output, and self-assessment inflation.
+Penalty hooks include:
 
-## Key Variables (Meaning)
+- instant-agreement exploitation
+- repeated/progressless proposals
+- ignoring context/history
+- timeout/empty/incoherent responses
+- inflated self-assessment behavior
 
-- `difficulty`: task hardness on 0-5 scale.
-- `skills_tested`: skills directly updated by this task.
-- `reward_mode`: `shared`, `zero_sum`, `partial`, `linked`, or `judge_scored`.
-- `curriculum_bucket`: selected difficulty band (`easy`, `medium`, `hard`, diagnostics, verification).
-- `confidence`: how reliable each skill estimate is; rises with more task evidence.
-- `learning_velocity`: improvement trend over recent history.
-- `plateau`: true when a skill barely changes over recent tasks.
+The environment computes both:
+- merged scalar reward (for logging and comparison),
+- structured breakdown values (for diagnostics and skill updates).
 
-## How To Run
+## Curriculum Engine Behavior
 
-From repo root:
+`server/curriculum_engine.py` drives adaptive progression:
 
-1) Install package
+- cold-start diagnostics identify weak initial skills,
+- weak skills are assigned easier targeted tasks,
+- improving skills move to harder tasks,
+- verification checks run periodically to validate transfer and stability.
+
+This yields per-agent divergence and measurable long-horizon development.
+
+## Main Architecture
+
+- `server/skillgraph_adaptive_env_environment.py`: environment state machine and turn orchestration
+- `server/task_library.py`: task templates and constraints
+- `server/skill_graph.py`: persistent per-agent skill state
+- `server/scoring.py`: deterministic reward decomposition and penalties
+- `server/curriculum_engine.py`: adaptive task selection
+- `training/run_training_three_models.py`: three-model training/evaluation pipeline
+- `ui/app.py`: Streamlit log and graph viewer
+
+## Three-Model Training (Primary Workflow)
+
+Run from repository root:
 
 ```bash
 pip install -e skillgraph_adaptive_env
-```
-
-2) Run baseline simulation training
-
-```bash
-python -m skillgraph_adaptive_env.training.run_training --episodes 120 --seed 7
-```
-
-3) Build GRPO-ready rollout dataset (manual, no model serving required)
-
-```bash
-python -m skillgraph_adaptive_env.training.run_training_trl_grpo --episodes 40 --seed 7 --print-trl-template
-```
-
-4) Open UI
-
-```bash
-streamlit run skillgraph_adaptive_env/ui/app.py
-```
-
-5) Run the 7-iteration HF plan (exactly 7 iterations)
-
-```bash
-python -m skillgraph_adaptive_env.training.run_training_hf_7iter --out-dir training/runs/hf_7iter --hf-token <YOUR_HF_TOKEN>
+python -m skillgraph_adaptive_env.training.run_training_three_models \
+  --episodes 3 \
+  --seed 7 \
+  --hf-token <YOUR_HF_TOKEN> \
+  --out-dir training/runs/hf_three_models
 ```
 
 ## Output Artifacts
 
-Outputs are written to `training/runs/latest/`:
+Generated under `training/runs/hf_three_models/`:
 
 - `episode_logs.csv`
 - `episode_logs.jsonl`
@@ -118,82 +90,69 @@ Outputs are written to `training/runs/latest/`:
 - `skill_evolution.png`
 - `weak_to_strong_transition.png`
 
-For the 7-iteration HF run (`training/runs/hf_7iter/`), the key artifacts are:
+## Log Schema Reference (Three-Model Run)
 
-- `iteration_report.jsonl`
-- `final_classification.json`
+Each row in `episode_logs.csv` (and each JSON object in `episode_logs.jsonl`) includes:
 
-## Story (README/Blog Ready)
+- run context: `episode`, `turn`, `task_id`, `task_type`, `curriculum_bucket`
+- model context: `agent_id`, `model_id`, `response_text`
+- task context: `skills`, `difficulty`, `self_rating`
+- outcomes: `success`, `reward`
+- reward decomposition: `task_score`, `skill_improvement`, `consistency`, `skill_drop`
 
-AMASES starts with three agents that all look similar at first.  
-They are not labeled as "good" or "bad" manually. Instead, every task measures
-how each agent performs on skill rubrics (collaboration, strategy, synthesis, negotiation).
+Example JSONL row shape:
 
-After each task:
-- the environment updates each agent's skill graph,
-- identifies weak and improving areas,
-- and chooses the next task difficulty accordingly.
+```json
+{
+  "episode": 1,
+  "task_id": "collaborative_medium",
+  "task_type": "collaborative",
+  "agent_id": "agent_alpha",
+  "model_id": "meta-llama/Llama-3.2-1B-Instruct",
+  "turn": 2,
+  "skills": "collaboration,planning",
+  "difficulty": 3.0,
+  "curriculum_bucket": "cold_start_diagnostic",
+  "self_rating": 0.57,
+  "success": false,
+  "reward": 0.0915,
+  "task_score": 0.0,
+  "skill_improvement": 0.12,
+  "consistency": 0.06,
+  "skill_drop": 0.0,
+  "response_text": "..."
+}
+```
 
-This means weak skills get easier practice first, improving skills get harder
-challenges, and strong skills get mixed-motive scenarios where transfer is needed.
-Over many tasks, agents diverge into specialties naturally through interaction.
+## Graph Reference
 
-The core value is persistent long-horizon learning:
-- not random task jumping,
-- not one scalar reward only,
-- but measurable per-skill progression with adaptive curriculum.
+- `reward_vs_steps.png`: reward trend by episode-turn; useful for stability and variance checks.
+- `skill_evolution.png`: mean skill trajectory per agent; shows relative learning divergence.
+- `weak_to_strong_transition.png`: tracks weakest starting agent through training progression.
 
-## Clarity: What AMASES Is / Is Not
+## Demo Artifacts (Committed Run)
 
-**AMASES is:**
-- a multi-agent training environment
-- persistent per-agent skill tracking
-- adaptive curriculum based on weak/improving skills
-- collaborative + competitive + mixed + teaching + debate interactions
+Repository includes example outputs at `training/runs/final_run/` (logs, summary, and the three plots above).
 
-**AMASES is not (in current scope):**
-- a production user-profiling system
-- a full TRL/Unsloth run pipeline yet
-- a final deployment product
+## UI Dashboard
 
-## Requirement Coverage Snapshot
+Path: `ui/app.py`
 
-- Multi-agent environment with agent pool: ✅
-- Persistent skill graph tracking: ✅
-- Curriculum engine (weak -> easy, improving -> harder, strong -> mixed): ✅
-- Competitive/collaborative/mixed/teaching/debate tasks: ✅
-- Multi-dimensional reward decomposition: ✅
-- Public/private memory with task-type masking: ✅
-- UI heatmap: ✅
-- UI live task arena with message threads: ✅
-- UI curriculum planner: ✅
-- UI interaction network (matrix view): ✅
-- Training outputs and plots: ✅
-- TRL + GRPO dataset entrypoint: ✅
-- Unsloth integration: ⚠️ optional future extension
+```bash
+pip install -e .
+streamlit run skillgraph_adaptive_env/ui/app.py
+```
 
-## Part 10: Create Your Own Integration
+Use the run-directory selector in the UI to load `training/runs/final_run` or any output folder from `run_training_three_models.py`.
 
-Use the project-aligned 5-step integration guide here:
+## Blog Post
 
-- `INTEGRATION_GUIDE.md`
+Draft placeholder: `blogpost.md` (edit in this folder).
 
-It covers:
-- action/observation types
-- environment implementation
-- client parsing/payload
-- OpenEnv app wiring
-- Docker packaging + validation checklist
+## Integration Notes
 
-This AMASES environment now follows that pattern directly:
-- Types in `models.py` (`SkillgraphAdaptiveAction`, `SkillgraphAdaptiveObservation`, `SkillgraphAdaptiveState`)
-- Environment entry in `server/skillgraph_adaptive_env_environment.py`
-- Client adapter in `client.py`
-- Server wiring in `server/app.py`
-
-## HF Free-Tier Note
-
-Hugging Face free/serverless models can fail intermittently due to cold starts,
-rate limits, or credits. The 7-iteration runner captures call failures in
-`iteration_report.jsonl` and includes model reliability stats in
-`final_classification.json`.
+- Core typed interfaces: `models.py`
+- Environment entrypoint: `server/skillgraph_adaptive_env_environment.py`
+- Server app wiring: `server/app.py`
+- Client adapter: `client.py`
+- OpenEnv integration guide: `INTEGRATION_GUIDE.md`
