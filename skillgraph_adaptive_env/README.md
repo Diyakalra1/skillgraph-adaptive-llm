@@ -32,6 +32,8 @@ The left panel has Python snippets to connect from Colab or a local client via `
 
 If the Space stays on **Starting**, confirm `app_port: 8000` in this README and that the container listens on `0.0.0.0:8000` (not Gradio’s default `7860`).
 
+If the App tab shows `{"detail":"Not Found"}`, the web UI is off — the Docker image sets `ENABLE_WEB_INTERFACE=true` so `/` redirects to `/web/` (Reset / Step UI).
+
 ## Agent Setup
 
 - `agent_alpha` (planner)
