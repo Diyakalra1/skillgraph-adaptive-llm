@@ -5,6 +5,7 @@ colorFrom: indigo
 colorTo: blue
 sdk: docker
 app_port: 8000
+base_path: /web
 python_version: "3.11"
 pinned: false
 tags:

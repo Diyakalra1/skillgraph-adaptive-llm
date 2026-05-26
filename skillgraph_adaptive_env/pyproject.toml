@@ -14,12 +14,7 @@ version = "0.1.0"
 description = "Skillgraph Adaptive Env environment for OpenEnv"
 requires-python = ">=3.10"
 dependencies = [
-    # Core OpenEnv runtime (provides FastAPI server + HTTP client types)
-    # install from github
-    # "openenv-core[core] @ git+https://github.com/meta-pytorch/OpenEnv.git",
-    "openenv-core>=0.2.2",
-    "matplotlib>=3.9.0",
-    "streamlit>=1.44.0",
+    "openenv-core[core]>=0.2.2",
 ]
 
 [project.optional-dependencies]
@@ -27,12 +22,30 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
 ]
+ui = [
+    "streamlit>=1.44.0",
+    "matplotlib>=3.9.0",
+]
+training = [
+    "matplotlib>=3.9.0",
+    "huggingface-hub>=0.20.0",
+]
+trl = [
+    "torch>=2.3.1",
+    "transformers>=4.46.0,<4.47.0",
+    "trl>=0.11.4,<0.12.0",
+    "datasets>=3.1.0",
+    "accelerate>=1.0.1",
+    "peft>=0.13.0",
+    "bitsandbytes>=0.44.0",
+]
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
 # or: python -m skillgraph_adaptive_env.server.app
 server = "skillgraph_adaptive_env.server.app:main"
 train-three-models = "skillgraph_adaptive_env.training.run_training_three_models:main"
+train-trl-grpo = "skillgraph_adaptive_env.training.run_training_trl_grpo:main"
 
 [tool.setuptools]
 include-package-data = true

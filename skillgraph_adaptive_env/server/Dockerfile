@@ -5,7 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 
 # Build from environment root: docker build -f server/Dockerfile .
-# HF Spaces use the root Dockerfile; this file mirrors it for local/openenv CLI builds.
+# Root Dockerfile is identical; HF Spaces build from repo root.
 
 ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
 FROM ${BASE_IMAGE} AS builder
@@ -15,6 +15,9 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
+
+ARG BUILD_MODE=standalone
+ARG ENV_NAME=skillgraph_adaptive_env
 
 COPY . /app/env
 WORKDIR /app/env
@@ -26,13 +29,17 @@ RUN if ! command -v uv >/dev/null 2>&1; then \
     fi
 
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=cache,target=/root/.cache/pip \
+    if [ -f uv.lock ]; then \
+        uv sync --frozen --no-install-project --no-editable; \
+    else \
+        uv sync --no-install-project --no-editable; \
+    fi
+
+RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f uv.lock ]; then \
         uv sync --frozen --no-editable; \
     else \
-        python -m venv /app/env/.venv && \
-        /app/env/.venv/bin/pip install --upgrade pip && \
-        /app/env/.venv/bin/pip install --no-cache-dir -r requirements.txt; \
+        uv sync --no-editable; \
     fi
 
 FROM ${BASE_IMAGE}
@@ -43,12 +50,9 @@ COPY --from=builder /app/env/.venv /app/.venv
 COPY --from=builder /app/env /app/env
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/env"
-ENV PORT=8000
+ENV PYTHONPATH="/app/env:$PYTHONPATH"
 
-EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=5 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5 \
-    CMD curl -f http://127.0.0.1:8000/health || exit 1
-
-CMD ["sh", "-c", "cd /app/env && exec uvicorn server.app:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "cd /app/env && uvicorn server.app:app --host 0.0.0.0 --port 8000"]

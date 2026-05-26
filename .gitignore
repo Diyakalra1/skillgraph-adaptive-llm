@@ -1,3 +1,6 @@
+# Local OpenEnv scaffold comparison (openenv init)
+_openenv_reference/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
