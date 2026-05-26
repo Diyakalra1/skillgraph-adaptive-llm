@@ -1,3 +1,14 @@
+---
+title: SkillGraph Adaptive Env
+emoji: chart_with_upwards_trend
+colorFrom: indigo
+colorTo: blue
+sdk: docker
+pinned: false
+tags:
+  - openenv
+---
+
 # AMASES: Adaptive Multi-Agent Skill Evolution System
 
 AMASES is a multi-agent OpenEnv environment focused on adaptive skill learning across three agents, five task families, and deterministic rubric-based rewards.
