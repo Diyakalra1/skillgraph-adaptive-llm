@@ -1,6 +1,6 @@
 ---
 title: SkillGraph Adaptive Env
-emoji: chart_with_upwards_trend
+emoji: 📈
 colorFrom: indigo
 colorTo: blue
 sdk: docker
