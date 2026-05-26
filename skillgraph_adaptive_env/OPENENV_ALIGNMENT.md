@@ -24,9 +24,9 @@ Compared against `openenv init skillgraph_dummy` (reference in repo `_openenv_re
 
 ## Fixes applied vs broken build
 
-1. **Dockerfile** — Replaced custom `pip` fallback with scaffold **two-step `uv sync`** so `.venv` is always created on HF.
-2. **README** — Added `base_path: /web` like scaffold.
-3. **pyproject** — Server deps only (`openenv-core[core]`); Streamlit/matplotlib moved to `[ui]` / `[training]` extras (faster Space build).
+1. **Dockerfile** — `uv sync --no-install-project` only (no second install step). Server code runs via `PYTHONPATH=/app/env`.
+2. **pyproject packages** — Only `skillgraph_adaptive_env` + `.server` (like `openenv init`). No `ui` package (`.dockerignore` excludes `ui/`).
+3. **README** — `app_port: 8000`, `base_path: /web`.
 
 ## Optional next step
 

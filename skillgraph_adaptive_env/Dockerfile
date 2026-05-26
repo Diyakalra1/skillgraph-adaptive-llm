@@ -1,11 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 #
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
-# Multi-stage build using openenv-base (matches `openenv init` scaffold).
-# HF Spaces: README must set app_port: 8000.
+# HF Spaces: README app_port: 8000. Runtime uses PYTHONPATH=/app/env (flat imports in server/app.py).
 
 ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
 FROM ${BASE_IMAGE} AS builder
@@ -16,9 +12,6 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
 
-ARG BUILD_MODE=standalone
-ARG ENV_NAME=skillgraph_adaptive_env
-
 COPY . /app/env
 WORKDIR /app/env
 
@@ -28,18 +21,12 @@ RUN if ! command -v uv >/dev/null 2>&1; then \
         mv /root/.local/bin/uvx /usr/local/bin/uvx; \
     fi
 
+# Install dependencies only — do not install project (ui/ is dockerignored; avoids uv sync failure).
 RUN --mount=type=cache,target=/root/.cache/uv \
     if [ -f uv.lock ]; then \
         uv sync --frozen --no-install-project --no-editable; \
     else \
         uv sync --no-install-project --no-editable; \
-    fi
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-editable; \
-    else \
-        uv sync --no-editable; \
     fi
 
 FROM ${BASE_IMAGE}

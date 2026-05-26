@@ -1,11 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
-
 # Build from environment root: docker build -f server/Dockerfile .
-# Root Dockerfile is identical; HF Spaces build from repo root.
 
 ARG BASE_IMAGE=ghcr.io/meta-pytorch/openenv-base:latest
 FROM ${BASE_IMAGE} AS builder
@@ -15,9 +9,6 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/*
-
-ARG BUILD_MODE=standalone
-ARG ENV_NAME=skillgraph_adaptive_env
 
 COPY . /app/env
 WORKDIR /app/env
@@ -33,13 +24,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         uv sync --frozen --no-install-project --no-editable; \
     else \
         uv sync --no-install-project --no-editable; \
-    fi
-
-RUN --mount=type=cache,target=/root/.cache/uv \
-    if [ -f uv.lock ]; then \
-        uv sync --frozen --no-editable; \
-    else \
-        uv sync --no-editable; \
     fi
 
 FROM ${BASE_IMAGE}

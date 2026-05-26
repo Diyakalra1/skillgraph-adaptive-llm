@@ -42,12 +42,10 @@ trl = [
 
 [project.scripts]
 # Server entry point - enables running via: uv run --project . server
-# or: python -m skillgraph_adaptive_env.server.app
 server = "skillgraph_adaptive_env.server.app:main"
-train-three-models = "skillgraph_adaptive_env.training.run_training_three_models:main"
-train-trl-grpo = "skillgraph_adaptive_env.training.run_training_trl_grpo:main"
 
 [tool.setuptools]
 include-package-data = true
-packages = ["skillgraph_adaptive_env", "skillgraph_adaptive_env.server", "skillgraph_adaptive_env.training", "skillgraph_adaptive_env.ui"]
-package-dir = { "skillgraph_adaptive_env" = ".", "skillgraph_adaptive_env.server" = "server", "skillgraph_adaptive_env.training" = "training", "skillgraph_adaptive_env.ui" = "ui" }
+# Match openenv init scaffold: root + server only (ui/training via PYTHONPATH, not installed on Space).
+packages = ["skillgraph_adaptive_env", "skillgraph_adaptive_env.server"]
+package-dir = { "skillgraph_adaptive_env" = ".", "skillgraph_adaptive_env.server" = "server" }
