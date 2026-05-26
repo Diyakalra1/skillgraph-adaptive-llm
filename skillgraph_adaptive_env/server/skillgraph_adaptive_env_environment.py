@@ -98,6 +98,7 @@ class SkillgraphAdaptiveEnvironment(Environment):
                 "step": self._state.step_count,
                 "episode": self._episode_idx,
                 "target_skill": task.get("target_skill", ""),
+                "check_keywords": list(task.get("check_keywords", [])),
                 "is_diagnostic": bool(task.get("is_diagnostic", False)),
                 "is_verification": bool(task.get("is_verification", False)),
                 "verification_alerts": list(self._verification_alerts[-3:]),
@@ -169,6 +170,7 @@ class SkillgraphAdaptiveEnvironment(Environment):
             context_refs=self._current_task.get("check_keywords", []),
             self_rating=float(action.self_rating),
             outcome=outcome,
+            task_prompt=str(self._current_task.get("prompt", "")),
         )
         reward = reward_result.scalar
         derived_skills = list(reward_result.skill_vector.keys()) or tested_skills
@@ -178,7 +180,6 @@ class SkillgraphAdaptiveEnvironment(Environment):
         if action.merged_reward_override is not None:
             # Allow external rubric+judge reward to drive training runs.
             reward = float(action.merged_reward_override)
-        reward = round(reward, 4)
         self._memory.add_private(
             turn=self._turn_index + 1,
             agent_id="system",
@@ -187,6 +188,9 @@ class SkillgraphAdaptiveEnvironment(Environment):
         )
         self._turn_index += 1
         done = solved or self._turn_index >= max_turns
+        if solved and done:
+            reward = min(1.0, float(reward) + 0.08)
+        reward = round(reward, 4)
 
         per_agent_reward = {agent: 0.0 for agent in self._current_team}
         per_agent_reward[actor] = reward

@@ -1,0 +1,18 @@
+{
+  "timestamp": "2026-05-26T12:43:44.472494",
+  "mode": "trl_grpo_collect_only",
+  "episodes": 30,
+  "seed": 7,
+  "num_samples": 74,
+  "avg_env_reward": 0.309,
+  "success_rate": 0.3514,
+  "dataset_path": "training\\runs\\trl_grpo_day1\\grpo_dataset.json",
+  "csv_path": "training\\runs\\trl_grpo_day1\\episode_logs.csv",
+  "plots": {
+    "reward_vs_steps": "training\\runs\\trl_grpo_day1\\plots\\reward_vs_steps.png",
+    "success_rate_trend": "training\\runs\\trl_grpo_day1\\plots\\success_rate_trend.png",
+    "reward_components": "training\\runs\\trl_grpo_day1\\plots\\reward_components.png",
+    "skill_evolution": "training\\runs\\trl_grpo_day1\\plots\\skill_evolution.png"
+  },
+  "eval_summary": "training\\runs\\trl_grpo_day1\\eval_summary.json"
+}

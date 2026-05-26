@@ -14,16 +14,21 @@ import matplotlib.pyplot as plt
 from huggingface_hub import InferenceClient
 
 from skillgraph_adaptive_env import SkillgraphAdaptiveAction
+from skillgraph_adaptive_env.server.agent_manager import AgentManager
 from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import (
     SkillgraphAdaptiveEnvironment,
 )
 
-
+# HF InferenceClient + router: append :provider when required (e.g. :featherless-ai).
 AGENT_MODEL_MAP_DEFAULT = {
     "agent_alpha": "meta-llama/Llama-3.2-1B-Instruct",
-    "agent_beta": "Qwen/Qwen2.5-1.5B-Instruct",
-    "agent_gamma": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+    "agent_beta": "Qwen/Qwen2.5-1.5B-Instruct:featherless-ai",
+    "agent_gamma": "google/gemma-3-1b-it:featherless-ai",
 }
+
+
+def _make_inference_client(token: str, timeout: int = 120) -> InferenceClient:
+    return InferenceClient(api_key=token, timeout=timeout)
 
 
 def _write_json(path: Path, data: dict) -> None:
@@ -69,7 +74,7 @@ def _make_prompt(obs, agent_id: str) -> str:
     )
 
 
-def _generate_with_model(client: InferenceClient, model_id: str, prompt: str, max_tokens: int) -> tuple[str, bool, str]:
+def _generate_with_model(client, model_id: str, prompt: str, max_tokens: int) -> tuple[str, bool, str]:
     def _first_error_line(exc: Exception) -> str:
         text = str(exc).strip()
         return text.splitlines()[0] if text else exc.__class__.__name__
@@ -81,24 +86,10 @@ def _generate_with_model(client: InferenceClient, model_id: str, prompt: str, ma
             max_tokens=max_tokens,
             temperature=0.2,
         )
-        return response.choices[0].message.content.strip(), True, ""
-    except Exception as chat_exc:
-        try:
-            # Fallback for providers that only expose text generation.
-            text = client.text_generation(
-                prompt=prompt,
-                model=model_id,
-                max_new_tokens=max_tokens,
-                temperature=0.2,
-                return_full_text=False,
-            )
-            return str(text).strip(), True, ""
-        except Exception as text_exc:
-            return (
-                "",
-                False,
-                f"model={model_id} chat_error={_first_error_line(chat_exc)} text_error={_first_error_line(text_exc)}",
-            )
+        content = response.choices[0].message.content
+        return (content or "").strip(), True, ""
+    except Exception as exc:
+        return "", False, f"model={model_id} error={_first_error_line(exc)}"
 
 
 def _generate_plots(rows: list[dict], skill_series: dict[str, list[float]], out_dir: Path) -> None:
@@ -192,10 +183,12 @@ def train(
     max_api_calls: int = 700,
     max_fallback_rate: float = 0.35,
     min_calls_before_abort: int = 18,
+    on_model_failure: str = "simulate",
 ) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     env = SkillgraphAdaptiveEnvironment(seed=seed)
-    client = InferenceClient(api_key=token, timeout=120)
+    agents = AgentManager(seed=seed)
+    client = _make_inference_client(token)
 
     csv_path = out_dir / "episode_logs.csv"
     jsonl_path = out_dir / "episode_logs.jsonl"
@@ -230,6 +223,7 @@ def train(
                 "consistency",
                 "skill_drop",
                 "response_text",
+                "used_fallback",
             ],
         )
         writer.writeheader()
@@ -251,14 +245,26 @@ def train(
                     client, model_id, prompt, max_tokens=max_tokens
                 )
                 api_calls += 1
+                used_fallback = False
                 if not ok:
                     fallback_calls += 1
-                    aborted_early = True
-                    abort_reason = (
-                        "strict_no_fallback:model_generation_failed "
-                        f"({model_error})"
+                    if on_model_failure == "abort":
+                        aborted_early = True
+                        abort_reason = (
+                            "strict_no_fallback:model_generation_failed "
+                            f"({model_error})"
+                        )
+                        break
+                    keywords = list((obs.metadata or {}).get("check_keywords", []))
+                    response_text = agents.simulated_response(
+                        agent_id=current_agent,
+                        prompt=obs.task_prompt,
+                        difficulty=obs.task_difficulty,
+                        rating=rating,
+                        task_type=obs.task_type,
+                        check_keywords=keywords,
                     )
-                    break
+                    used_fallback = True
                 if request_gap_s > 0:
                     time.sleep(request_gap_s)
                 action = SkillgraphAdaptiveAction(
@@ -287,6 +293,7 @@ def train(
                     "consistency": rb.get("learning_evidence", 0.0),
                     "skill_drop": rb.get("skill_drop_penalty", 0.0),
                     "response_text": response_text,
+                    "used_fallback": used_fallback,
                 }
                 rows.append(row)
                 writer.writerow(row)
@@ -378,6 +385,12 @@ def main() -> None:
         default=18,
         help="Minimum calls before fallback-rate early-stop can trigger.",
     )
+    parser.add_argument(
+        "--on-model-failure",
+        choices=("simulate", "abort"),
+        default="simulate",
+        help="On HF API failure: simulate env response (day1) or abort immediately.",
+    )
     args = parser.parse_args()
 
     token = args.hf_token.strip() or os.getenv("HF_TOKEN", "").strip()
@@ -401,6 +414,7 @@ def main() -> None:
         max_api_calls=max(1, args.max_api_calls),
         max_fallback_rate=max(0.0, min(1.0, args.max_fallback_rate)),
         min_calls_before_abort=max(1, args.min_calls_before_abort),
+        on_model_failure=args.on_model_failure,
     )
     print(f"\nTraining complete. Summary: {summary_path}")
 

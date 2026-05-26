@@ -1,0 +1,8 @@
+# Pin set tested for Colab T4 GRPO runs with AMASES
+torch>=2.3.1
+transformers>=4.46.0,<4.47.0
+trl>=0.11.4,<0.12.0
+datasets>=3.1.0
+accelerate>=1.0.1
+peft>=0.13.0
+bitsandbytes>=0.44.0

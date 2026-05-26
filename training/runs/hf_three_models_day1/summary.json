@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-05-26T13:35:48.846481",
+  "episodes": 3,
+  "seed": 7,
+  "mode": "hf_three_models",
+  "model_map": {
+    "agent_alpha": "meta-llama/Llama-3.2-1B-Instruct",
+    "agent_beta": "Qwen/Qwen2.5-1.5B-Instruct:featherless-ai",
+    "agent_gamma": "google/gemma-3-1b-it:featherless-ai"
+  },
+  "turn_cap": 10,
+  "api_calls": 30,
+  "fallback_calls": 0,
+  "fallback_rate": 0.0,
+  "max_api_calls": 40,
+  "max_fallback_rate": 0.35,
+  "min_calls_before_abort": 18,
+  "aborted_early": false,
+  "abort_reason": "",
+  "avg_reward": 0.4123,
+  "success_rate": 0.0,
+  "csv_path": "training\\runs\\hf_three_models_day1\\episode_logs.csv",
+  "jsonl_path": "training\\runs\\hf_three_models_day1\\episode_logs.jsonl"
+}

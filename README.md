@@ -13,12 +13,31 @@ AMASES (Adaptive Multi-Agent Skill Evolution System) is an OpenEnv-based multi-a
 - `skillgraph_adaptive_env/server/skill_graph.py`: per-agent skill state, confidence, and updates over time.
 - `skillgraph_adaptive_env/server/curriculum_engine.py`: weak-skill targeting, diagnostics, and verification checks.
 - `skillgraph_adaptive_env/server/scoring.py`: deterministic reward decomposition and penalty logic.
-- `skillgraph_adaptive_env/training/run_training_three_models.py`: model-backed training run with three HF models and artifact generation.
+- `skillgraph_adaptive_env/training/run_training_trl_grpo.py`: TRL GRPO fine-tuning using environment rewards.
+- `skillgraph_adaptive_env/training/run_training_three_models.py`: model-backed evaluation run with three HF models and artifact generation.
 - `skillgraph_adaptive_env/ui/app.py`: Streamlit inspection UI for logs and plots.
 
-## Supported Training Workflow
+## Supported Training Workflows
 
-### Three-Model Training (Primary)
+### TRL GRPO Training (Model Fine-Tuning)
+
+Collect environment rollouts (prompt + env reward), then fine-tune with TRL GRPO:
+
+```bash
+pip install -e "skillgraph_adaptive_env[trl]"
+python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
+  --episodes 40 \
+  --seed 7 \
+  --model-id Qwen/Qwen2.5-0.5B-Instruct \
+  --out-dir training/runs/trl_grpo
+```
+
+Outputs:
+- `training/runs/trl_grpo/grpo_dataset.json`
+- `training/runs/trl_grpo/summary.json`
+- `training/runs/trl_grpo/checkpoints/final/`
+
+### Three-Model Training (HF Inference Evaluation)
 
 This workflow maps three agents to three real HF models and runs them through the environment:
 
@@ -80,6 +99,23 @@ The UI reads run directories under `training/runs/` (for example `training/runs/
 - `reward_vs_steps.png`: scalar reward trend across episode-turn steps.
 - `skill_evolution.png`: mean skill evolution per agent over episodes.
 - `weak_to_strong_transition.png`: trajectory of the weakest initial agent over time.
+
+## Day 1 Sprint (quick reproduction)
+
+Local rollout collection (no GPU, no HF token):
+
+```bash
+pip install -e skillgraph_adaptive_env
+python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
+  --episodes 12 --seed 7 --collect-only \
+  --out-dir training/runs/trl_grpo_day1
+```
+
+Colab notebook: `skillgraph_adaptive_env/training/colab_day1_sprint.ipynb`
+
+Expected artifacts under `training/runs/trl_grpo_day1/`:
+- `grpo_dataset.json`, `episode_logs.csv`, `summary.json`, `eval_summary.json`
+- `plots/reward_vs_steps.png`, `plots/success_rate_trend.png`, `plots/reward_components.png`
 
 ## Notes
 

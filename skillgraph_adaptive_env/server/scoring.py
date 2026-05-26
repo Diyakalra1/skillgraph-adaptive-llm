@@ -103,6 +103,74 @@ def llm_judge_score(
 def _contains_any(text: str, tokens: list[str]) -> bool:
     return any(token in text for token in tokens)
 
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"[a-zA-Z0-9]+(?:[-'][a-zA-Z0-9]+)?", (text or "").lower())
+
+
+_STOPWORDS = {
+    "the",
+    "a",
+    "an",
+    "and",
+    "or",
+    "to",
+    "of",
+    "in",
+    "for",
+    "on",
+    "with",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "as",
+    "at",
+    "by",
+    "from",
+    "this",
+    "that",
+    "these",
+    "those",
+    "it",
+    "its",
+    "your",
+    "you",
+    "we",
+    "our",
+    "they",
+    "their",
+    "i",
+}
+
+
+def _keyword_hits(text: str, keywords: list[str]) -> tuple[int, int]:
+    """Return (total occurrences, unique keyword count)."""
+    if not keywords:
+        return 0, 0
+    t = (text or "").lower()
+    total = 0
+    uniq = 0
+    for kw in keywords:
+        kw_l = str(kw).lower()
+        if not kw_l:
+            continue
+        cnt = t.count(kw_l)
+        total += cnt
+        if cnt > 0:
+            uniq += 1
+    return total, uniq
+
+
+def _prompt_overlap(task_prompt: str, response_text: str) -> float:
+    """Cheap 'aboutness' check: token overlap with prompt surface details."""
+    prompt_tokens = [t for t in _tokenize(task_prompt) if len(t) >= 4 and t not in _STOPWORDS]
+    resp_tokens = set(t for t in _tokenize(response_text) if len(t) >= 4 and t not in _STOPWORDS)
+    if not prompt_tokens or not resp_tokens:
+        return 0.0
+    prompt_set = set(prompt_tokens)
+    return len(prompt_set & resp_tokens) / max(1, len(prompt_set))
+
 
 def _task_success_score(outcome: dict) -> float:
     agreed = 1.0 if outcome.get("agreement_reached", False) else 0.0
@@ -110,9 +178,12 @@ def _task_success_score(outcome: dict) -> float:
     turns_used = float(outcome.get("turns_used", 0))
     max_turns = float(max(1, int(outcome.get("max_turns", 1))))
     efficiency = max(0.0, 1.0 - (turns_used / max_turns))
+    # Cap keyword-quality impact so spamming keywords cannot dominate.
+    quality = max(0.0, min(0.75, quality))
     if not agreed:
-        return round(min(0.45, 0.35 * quality + 0.10 * efficiency), 4)
-    return min(1.0, 0.6 * agreed + 0.25 * efficiency + 0.15 * quality)
+        # Partial credit for keyword quality even before full "solved".
+        return round(min(0.55, 0.48 * quality + 0.12 * efficiency), 4)
+    return min(1.0, 0.55 * agreed + 0.22 * efficiency + 0.23 * quality)
 
 
 def _skill_demo_score(task_type: str, text: str) -> float:
@@ -175,8 +246,10 @@ def _penalties(
     self_rating: float,
     predicted_score: float,
     context_refs: list[str],
+    task_prompt: str = "",
 ) -> dict[str, float]:
     text = (current_text or "").lower()
+    tokens = _tokenize(text)
     penalties = {
         "instant_agreement_hack": 0.0,
         "proposal_repetition": 0.0,
@@ -184,6 +257,8 @@ def _penalties(
         "timeout_failure": 0.0,
         "incoherent_output": 0.0,
         "self_assessment_inflation": 0.0,
+        "keyword_stuffing": 0.0,
+        "low_task_alignment": 0.0,
     }
     if agreement_reached and turn_idx <= 2 and not _contains_any(text, ["counter", "evaluate", "trade-off", "constraint"]):
         penalties["instant_agreement_hack"] = 0.18
@@ -198,6 +273,23 @@ def _penalties(
         penalties["incoherent_output"] = 0.18
     if (self_rating - predicted_score) > 0.35:
         penalties["self_assessment_inflation"] = 0.08
+
+    # Anti keyword-stuffing: too many keyword occurrences relative to length,
+    # or extremely short "keyword soup" responses.
+    if context_refs:
+        total_hits, uniq_hits = _keyword_hits(text, context_refs)
+        tok_count = max(1, len(tokens))
+        density = total_hits / tok_count
+        if (total_hits >= 4 and density > 0.18) or (uniq_hits >= min(3, len(context_refs)) and tok_count <= 14):
+            # Scale up gently; cap at 0.20.
+            penalties["keyword_stuffing"] = round(min(0.20, 0.10 + 0.60 * max(0.0, density - 0.18)), 4)
+
+    # Cheap "aboutness" check: penalize responses that ignore the prompt surface.
+    # This stops generic keyword spam that doesn't mention the city/topic/budget/etc.
+    if task_prompt and len(tokens) >= 8:
+        overlap = _prompt_overlap(task_prompt, text)
+        if overlap < 0.03:
+            penalties["low_task_alignment"] = 0.06
     return penalties
 
 
@@ -212,6 +304,7 @@ def compute_reward(
     context_refs: list[str],
     self_rating: float,
     outcome: dict,
+    task_prompt: str = "",
 ) -> RewardResult:
     text = (current_text or "").lower()
     task_success = _task_success_score(outcome)
@@ -244,6 +337,7 @@ def compute_reward(
         self_rating=self_rating,
         predicted_score=scalar,
         context_refs=context_refs,
+        task_prompt=task_prompt,
     )
     scalar = max(0.01, scalar - sum(penalties.values()))
     base_skill_value = round(max(0.0, min(1.0, 0.45 * skill_demo + 0.25 * learning_evidence + 0.30 * collab_quality)), 4)

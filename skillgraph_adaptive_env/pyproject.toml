@@ -29,6 +29,7 @@ ui = [
 training = [
     "matplotlib>=3.9.0",
     "huggingface-hub>=0.20.0",
+    "openai>=1.0.0",
 ]
 trl = [
     "torch>=2.3.1",
