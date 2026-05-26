@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import os
 from typing import Any, Callable, Dict, List, Optional, Type
@@ -20,86 +21,391 @@ from openenv.core.env_server.web_interface import (
 )
 
 AGENT_CHOICES = ["agent_alpha", "agent_beta", "agent_gamma"]
+AGENT_LABELS = {
+    "agent_alpha": ("Planner", "α", "#818cf8"),
+    "agent_beta": ("Debater", "β", "#38bdf8"),
+    "agent_gamma": ("Integrator", "γ", "#34d399"),
+}
+AGENT_DROPDOWN = [(f"{AGENT_LABELS[a][1]} {AGENT_LABELS[a][0]}", a) for a in AGENT_CHOICES]
 
 AMASES_THEME = gr.themes.Soft(
     primary_hue=gr.themes.colors.indigo,
-    secondary_hue=gr.themes.colors.blue,
+    secondary_hue=gr.themes.colors.cyan,
     neutral_hue=gr.themes.colors.slate,
-    font=gr.themes.GoogleFont("Inter"),
+    font=gr.themes.GoogleFont("DM Sans"),
     font_mono=gr.themes.GoogleFont("JetBrains Mono"),
 ).set(
-    body_background_fill_dark="#0f172a",
-    background_fill_primary_dark="#111827",
-    background_fill_secondary_dark="#1e293b",
-    block_background_fill_dark="#1e293b",
-    block_border_color_dark="#334155",
-    button_primary_background_fill="#4f46e5",
+    body_background_fill_dark="#070b14",
+    background_fill_primary_dark="#0c1222",
+    background_fill_secondary_dark="#131c31",
+    block_background_fill_dark="rgba(19, 28, 49, 0.85)",
+    block_border_color_dark="rgba(148, 163, 184, 0.18)",
+    block_label_text_color_dark="#94a3b8",
+    block_title_text_color_dark="#f1f5f9",
+    border_color_primary_dark="rgba(99, 102, 241, 0.35)",
+    input_background_fill_dark="#0f1729",
+    input_border_color_dark="rgba(99, 102, 241, 0.25)",
+    button_primary_background_fill="linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
     button_primary_background_fill_hover="#4338ca",
     button_primary_text_color="#ffffff",
+    button_secondary_background_fill_dark="#1e293b",
+    button_secondary_background_fill_hover_dark="#334155",
 )
 
 AMASES_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+.gradio-container {
+    max-width: 1180px !important;
+    font-family: 'DM Sans', 'Inter', system-ui, sans-serif !important;
+}
+
+/* Hero */
 .amases-hero {
-    background: linear-gradient(135deg, #312e81 0%, #1e3a8a 55%, #0f172a 100%);
-    border: 1px solid #475569;
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(125deg, #1e1b4b 0%, #312e81 28%, #1e3a8a 58%, #0f172a 100%);
+    border: 1px solid rgba(129, 140, 248, 0.35);
+    border-radius: 20px;
+    padding: 28px 32px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.amases-hero::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -10%;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.35) 0%, transparent 70%);
+    pointer-events: none;
+}
+.amases-hero h1 {
+    margin: 0 0 8px 0;
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f8fafc;
+    position: relative;
+}
+.amases-hero .tagline {
+    margin: 0 0 18px 0;
+    color: #cbd5e1;
+    font-size: 1rem;
+    line-height: 1.5;
+    max-width: 52rem;
+    position: relative;
+}
+.amases-agents {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: relative;
+}
+.amases-agent-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(8px);
     color: #e2e8f0;
 }
-.amases-hero h1 { margin: 0 0 6px 0; font-size: 1.55rem; color: #f8fafc; }
-.amases-hero p { margin: 0; opacity: 0.92; font-size: 0.95rem; }
+.amases-agent-chip .badge {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+/* Panels */
 .amases-panel {
-    border: 1px solid #334155 !important;
-    border-radius: 12px !important;
-    padding: 12px !important;
+    background: rgba(15, 23, 42, 0.55) !important;
+    border: 1px solid rgba(148, 163, 184, 0.15) !important;
+    border-radius: 16px !important;
+    padding: 18px !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2) !important;
+}
+.amases-sidebar-title {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #64748b;
+    font-weight: 700;
+    margin-bottom: 12px;
+}
+.amases-step {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+}
+.amases-step-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.amases-step-text { color: #cbd5e1; font-size: 0.9rem; line-height: 1.45; }
+.amases-keywords {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px dashed rgba(129, 140, 248, 0.4);
+    font-size: 0.85rem;
+    color: #a5b4fc;
+}
+.amases-keywords code {
+    background: rgba(15, 23, 42, 0.6);
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin: 2px 4px 2px 0;
+    font-size: 0.8rem;
+    color: #e0e7ff;
+}
+
+/* Observation dashboard */
+.amases-dash {
+    border-radius: 14px;
+    padding: 4px 2px 8px;
+}
+.amases-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+@media (max-width: 720px) {
+    .amases-metrics { grid-template-columns: 1fr; }
 }
 .amases-metric {
-    background: #0f172a;
-    border: 1px solid #334155;
-    border-radius: 10px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
+    background: linear-gradient(160deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+}
+.amases-metric .label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+.amases-metric .value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+.amases-metric.reward .value { color: #34d399; }
+.amases-metric.done-true .value { color: #fbbf24; }
+.amases-section {
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(71, 85, 105, 0.35);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.amases-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #818cf8;
+}
+.amases-section p, .amases-section li {
+    margin: 0;
+    color: #e2e8f0;
+    font-size: 0.92rem;
+    line-height: 1.55;
+}
+.amases-prompt {
+    color: #cbd5e1;
+    white-space: pre-wrap;
+}
+.amases-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.amases-pill {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #7dd3fc;
+    border: 1px solid rgba(56, 189, 248, 0.3);
+}
+.amases-empty {
+    text-align: center;
+    padding: 32px 16px;
+    color: #64748b;
+}
+.amases-empty .icon { font-size: 2.5rem; margin-bottom: 8px; opacity: 0.7; }
+
+/* Buttons row */
+.amases-actions button { min-height: 44px !important; font-weight: 600 !important; }
+.amases-status-ok {
+    color: #34d399 !important;
+    font-weight: 500 !important;
 }
 """
 
 
-def _format_amases_observation(data: Dict[str, Any]) -> str:
+def _esc(text: Any) -> str:
+    return html.escape(str(text) if text is not None else "—")
+
+
+def _format_amases_observation_html(data: Dict[str, Any]) -> str:
     obs = data.get("observation") or {}
     if not isinstance(obs, dict):
-        return "*No observation*"
+        return '<div class="amases-empty"><div class="icon">◇</div><p>No observation yet</p></div>'
 
-    lines = [
-        "### Episode status",
-        f"- **Reward:** `{data.get('reward', obs.get('reward', '—'))}`",
-        f"- **Done:** `{data.get('done', obs.get('done', '—'))}`",
-        f"- **Success:** `{obs.get('success', '—')}`",
-        "",
-        "### Task",
-        f"- **Task ID:** `{obs.get('task_id', '—')}`",
-        f"- **Type:** `{obs.get('task_type', '—')}`",
-        f"- **Difficulty:** `{obs.get('task_difficulty', '—')}`",
-        f"- **Turn:** `{obs.get('turn_index', '—')}` / `{obs.get('max_turns', '—')}`",
-        f"- **Current agent:** `{obs.get('current_agent_id', '—')}`",
-        "",
-    ]
+    reward = data.get("reward", obs.get("reward", "—"))
+    done = data.get("done", obs.get("done", False))
+    success = obs.get("success", False)
+    done_cls = "done-true" if done else ""
+    reward_val = _esc(reward)
+
+    task_id = _esc(obs.get("task_id", "—"))
+    task_type = _esc(obs.get("task_type", "—"))
+    difficulty = _esc(obs.get("task_difficulty", "—"))
+    turn = _esc(obs.get("turn_index", "—"))
+    max_turns = _esc(obs.get("max_turns", "—"))
+    current_agent = _esc(obs.get("current_agent_id", "—"))
+
     prompt = obs.get("task_prompt") or ""
-    if prompt:
-        lines.extend(["**Task prompt**", "", prompt, ""])
     skills = obs.get("task_skills") or []
-    if skills:
-        lines.append(f"**Skills tested:** {', '.join(skills)}")
-        lines.append("")
     breakdown = obs.get("reward_breakdown") or {}
-    if breakdown:
-        lines.append("**Reward breakdown**")
-        for key, val in breakdown.items():
-            lines.append(f"- `{key}`: `{val}`")
-        lines.append("")
     team = obs.get("team_agent_ids") or []
-    if team:
-        lines.append(f"**Team:** {', '.join(team)}")
-    return "\n".join(lines)
+
+    skills_html = "".join(f'<span class="amases-pill">{_esc(s)}</span>' for s in skills)
+    team_html = ", ".join(_esc(a) for a in team) if team else "—"
+
+    breakdown_rows = ""
+    for key, val in list(breakdown.items())[:8]:
+        breakdown_rows += f"<li><strong>{_esc(key)}</strong>: {_esc(val)}</li>"
+
+    breakdown_block = ""
+    if breakdown_rows:
+        breakdown_block = f"""
+        <div class="amases-section">
+          <h4>Reward breakdown</h4>
+          <ul style="padding-left: 1.1rem; margin: 0;">{breakdown_rows}</ul>
+        </div>
+        """
+
+    prompt_block = ""
+    if prompt:
+        prompt_block = f"""
+        <div class="amases-section">
+          <h4>Task prompt</h4>
+          <p class="amases-prompt">{_esc(prompt)}</p>
+        </div>
+        """
+
+    skills_block = ""
+    if skills_html:
+        skills_block = f"""
+        <div class="amases-section">
+          <h4>Skills tested</h4>
+          <div class="amases-pills">{skills_html}</div>
+        </div>
+        """
+
+    return f"""
+    <div class="amases-dash">
+      <div class="amases-metrics">
+        <div class="amases-metric reward">
+          <div class="label">Reward</div>
+          <div class="value">{reward_val}</div>
+        </div>
+        <div class="amases-metric {done_cls}">
+          <div class="label">Done</div>
+          <div class="value">{_esc(done)}</div>
+        </div>
+        <div class="amases-metric">
+          <div class="label">Success</div>
+          <div class="value">{_esc(success)}</div>
+        </div>
+      </div>
+      <div class="amases-section">
+        <h4>Task · Turn {turn} / {max_turns}</h4>
+        <p><strong>ID</strong> {task_id} · <strong>Type</strong> {task_type} ·
+           <strong>Difficulty</strong> {difficulty}</p>
+        <p style="margin-top:8px"><strong>Acting now:</strong> {current_agent}</p>
+        <p style="margin-top:8px; color:#94a3b8"><strong>Team:</strong> {team_html}</p>
+      </div>
+      {prompt_block}
+      {skills_block}
+      {breakdown_block}
+    </div>
+    """
+
+
+def _hero_html() -> str:
+    chips = []
+    for aid in AGENT_CHOICES:
+        role, glyph, color = AGENT_LABELS[aid]
+        chips.append(
+            f'<span class="amases-agent-chip">'
+            f'<span class="badge" style="background:{color}">{glyph}</span>'
+            f"{role} <span style='opacity:0.65;font-weight:400'>· {aid}</span></span>"
+        )
+    return f"""
+    <div class="amases-hero">
+      <h1>AMASES</h1>
+      <p class="tagline">Adaptive Multi-Agent Skill Evolution — curriculum tasks, rubric rewards, and live skill-graph updates.</p>
+      <div class="amases-agents">{''.join(chips)}</div>
+    </div>
+    """
+
+
+def _sidebar_html() -> str:
+    return """
+    <div class="amases-sidebar-title">How to play</div>
+    <div class="amases-step">
+      <span class="amases-step-num">1</span>
+      <span class="amases-step-text"><strong>Reset episode</strong> — samples a new task from the 15-task curriculum.</span>
+    </div>
+    <div class="amases-step">
+      <span class="amases-step-num">2</span>
+      <span class="amases-step-text"><strong>Pick the agent</strong> shown as “Acting now” in the dashboard (or rotate α → β → γ).</span>
+    </div>
+    <div class="amases-step">
+      <span class="amases-step-num">3</span>
+      <span class="amases-step-text"><strong>Step</strong> with a strong response — higher reward when rubric keywords appear.</span>
+    </div>
+    <div class="amases-keywords">
+      <strong style="color:#c7d2fe">Tip:</strong> include
+      <code>evidence</code><code>synthesis</code><code>trade-off</code><code>summary</code>
+      for collaborative tasks.
+    </div>
+    """
+
+
+def _empty_dashboard_html() -> str:
+    return """
+    <div class="amases-empty">
+      <div class="icon">✦</div>
+      <p style="font-size:1.05rem;color:#94a3b8;margin-bottom:4px">Ready for a new episode</p>
+      <p style="font-size:0.88rem">Click <strong>Reset episode</strong> to draw a task from the curriculum.</p>
+    </div>
+    """
 
 
 def build_amases_gradio_app(
@@ -110,13 +416,20 @@ def build_amases_gradio_app(
     async def reset_env():
         try:
             data = await web_manager.reset_environment()
+            obs = data.get("observation") or {}
+            tid = obs.get("task_id", "") if isinstance(obs, dict) else ""
+            agent = obs.get("current_agent_id", AGENT_CHOICES[0]) if isinstance(obs, dict) else AGENT_CHOICES[0]
+            if agent not in AGENT_CHOICES:
+                agent = AGENT_CHOICES[0]
             return (
-                _format_amases_observation(data),
+                _format_amases_observation_html(data),
                 json.dumps(data, indent=2),
-                "Episode reset — new task from curriculum.",
+                "✓ New episode — task loaded from curriculum.",
+                tid,
+                agent,
             )
         except Exception as exc:
-            return ("", "", f"Error: {exc}")
+            return (_empty_dashboard_html(), "", f"✗ Error: {exc}", "", AGENT_CHOICES[0])
 
     async def step_env(
         agent_id: str,
@@ -135,16 +448,29 @@ def build_amases_gradio_app(
             try:
                 action["merged_reward_override"] = float(merged_reward_override)
             except ValueError:
-                return ("", "", "Merged reward override must be a number or empty.")
+                return (
+                    _empty_dashboard_html(),
+                    "",
+                    "✗ Merged reward must be a number or empty.",
+                    task_id,
+                    agent_id,
+                )
         try:
             data = await web_manager.step_environment(action)
+            obs = data.get("observation") or {}
+            tid = obs.get("task_id", task_id) if isinstance(obs, dict) else task_id
+            agent = obs.get("current_agent_id", agent_id) if isinstance(obs, dict) else agent_id
+            if agent not in AGENT_CHOICES:
+                agent = agent_id
             return (
-                _format_amases_observation(data),
+                _format_amases_observation_html(data),
                 json.dumps(data, indent=2),
-                "Step recorded.",
+                "✓ Step recorded — check reward & breakdown above.",
+                tid,
+                agent,
             )
         except Exception as exc:
-            return ("", "", f"Error: {exc}")
+            return (_empty_dashboard_html(), "", f"✗ Error: {exc}", task_id, agent_id)
 
     def get_state_sync():
         try:
@@ -154,70 +480,67 @@ def build_amases_gradio_app(
 
     title = metadata.name if metadata else "AMASES"
     with gr.Blocks(title=f"AMASES · {title}") as demo:
-        gr.HTML(
-            """
-            <div class="amases-hero">
-              <h1>AMASES — Adaptive Multi-Agent Skill Evolution</h1>
-              <p>Three agents · curriculum tasks · rubric rewards · skill graph updates each turn</p>
-            </div>
-            """
-        )
-        with gr.Row():
-            with gr.Column(scale=1, elem_classes="amases-panel"):
-                gr.Markdown("#### Quick guide")
-                gr.Markdown(
-                    "1. **Reset** — new task  \n"
-                    "2. Use **current agent** from the panel →  \n"
-                    "3. **Step** — include keywords: `evidence`, `synthesis`, `trade-off`, `summary`  \n"
-                    "4. Leave **Merged reward** empty unless debugging"
-                )
+        gr.HTML(_hero_html())
+        with gr.Row(equal_height=False):
+            with gr.Column(scale=1, min_width=280, elem_classes="amases-panel"):
+                gr.HTML(_sidebar_html())
                 if quick_start_md:
-                    with gr.Accordion("Connect from Python", open=False):
+                    with gr.Accordion("Python client", open=False):
                         gr.Markdown(quick_start_md)
 
             with gr.Column(scale=2, elem_classes="amases-panel"):
-                obs_display = gr.Markdown(
-                    value="### Ready\n\nClick **Reset episode** to sample a task from the curriculum.",
-                )
+                gr.Markdown("#### Live dashboard")
+                obs_display = gr.HTML(value=_empty_dashboard_html())
                 with gr.Group():
                     agent_id = gr.Dropdown(
-                        choices=AGENT_CHOICES,
+                        choices=AGENT_DROPDOWN,
                         value=AGENT_CHOICES[0],
-                        label="Agent",
-                        info="Planner α · Debater β · Integrator γ",
+                        label="Active agent",
                     )
-                    task_id = gr.Textbox(
-                        label="Task ID",
-                        placeholder="Filled after reset (e.g. collaborative_medium)",
-                    )
+                    with gr.Row():
+                        task_id = gr.Textbox(
+                            label="Task ID",
+                            placeholder="Auto-filled on reset",
+                            scale=2,
+                        )
+                        self_rating = gr.Slider(
+                            minimum=0.0,
+                            maximum=1.0,
+                            value=0.75,
+                            step=0.05,
+                            label="Confidence",
+                            scale=1,
+                        )
                     response_text = gr.Textbox(
-                        label="Response",
-                        lines=5,
-                        placeholder="Agent message for this turn…",
-                    )
-                    self_rating = gr.Slider(
-                        minimum=0.0,
-                        maximum=1.0,
-                        value=0.75,
-                        step=0.05,
-                        label="Self rating",
+                        label="Agent response",
+                        lines=4,
+                        placeholder="Write the agent's message for this turn…",
                     )
                     merged_reward_override = gr.Textbox(
                         label="Merged reward override (optional)",
-                        placeholder="Leave empty",
+                        placeholder="Leave empty for rubric scoring",
+                        visible=True,
                     )
-                with gr.Row():
-                    reset_btn = gr.Button("Reset episode", variant="secondary")
-                    step_btn = gr.Button("Step", variant="primary")
-                    state_btn = gr.Button("Get state", variant="secondary")
-                status = gr.Textbox(label="Status", interactive=False)
-                raw_json = gr.Code(label="Raw JSON", language="json", interactive=False)
+                with gr.Row(elem_classes="amases-actions"):
+                    reset_btn = gr.Button("↺ Reset episode", variant="secondary", scale=1)
+                    step_btn = gr.Button("▶ Step", variant="primary", scale=1)
+                    state_btn = gr.Button("{ } State", variant="secondary", scale=1)
+                status = gr.Textbox(
+                    label="Status",
+                    interactive=False,
+                    elem_classes="amases-status-ok",
+                )
+                with gr.Accordion("Raw JSON", open=False):
+                    raw_json = gr.Code(language="json", interactive=False)
 
-        reset_btn.click(reset_env, outputs=[obs_display, raw_json, status])
+        reset_btn.click(
+            reset_env,
+            outputs=[obs_display, raw_json, status, task_id, agent_id],
+        )
         step_btn.click(
             step_env,
             inputs=[agent_id, task_id, response_text, self_rating, merged_reward_override],
-            outputs=[obs_display, raw_json, status],
+            outputs=[obs_display, raw_json, status, task_id, agent_id],
         )
         state_btn.click(get_state_sync, outputs=[raw_json])
 
