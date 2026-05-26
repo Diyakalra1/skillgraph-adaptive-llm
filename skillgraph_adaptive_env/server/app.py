@@ -29,29 +29,24 @@ Usage:
 """
 
 try:
-    from openenv.core.env_server.http_server import create_app
-except Exception as e:  # pragma: no cover
-    raise ImportError(
-        "openenv is required for the web interface. Install dependencies with '\n    uv sync\n'"
-    ) from e
-
-try:
     # Flat layout used by Docker / Hugging Face Space (/app/env root on PYTHONPATH).
     from models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
+    from server.amases_web_ui import create_amases_app
     from server.skillgraph_adaptive_env_environment import SkillgraphAdaptiveEnvironment
 except ImportError:
-    # Installed package layout: skillgraph_adaptive_env.*
     from skillgraph_adaptive_env.models import SkillgraphAdaptiveAction, SkillgraphAdaptiveObservation
-    from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import SkillgraphAdaptiveEnvironment
+    from skillgraph_adaptive_env.server.amases_web_ui import create_amases_app
+    from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import (
+        SkillgraphAdaptiveEnvironment,
+    )
 
-
-# Create the app with web interface and README integration
-app = create_app(
+# AMASES-branded Gradio UI when ENABLE_WEB_INTERFACE=true (HF Space Dockerfile sets this).
+app = create_amases_app(
     SkillgraphAdaptiveEnvironment,
     SkillgraphAdaptiveAction,
     SkillgraphAdaptiveObservation,
     env_name="skillgraph_adaptive_env",
-    max_concurrent_envs=1,  # increase this number to allow more concurrent WebSocket sessions
+    max_concurrent_envs=1,
 )
 
 
