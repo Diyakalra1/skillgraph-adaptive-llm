@@ -48,5 +48,13 @@ server = "skillgraph_adaptive_env.server.app:main"
 [tool.setuptools]
 include-package-data = true
 # Match openenv init scaffold: root + server only (ui/training via PYTHONPATH, not installed on Space).
-packages = ["skillgraph_adaptive_env", "skillgraph_adaptive_env.server"]
-package-dir = { "skillgraph_adaptive_env" = ".", "skillgraph_adaptive_env.server" = "server" }
+packages = [
+    "skillgraph_adaptive_env",
+    "skillgraph_adaptive_env.server",
+    "skillgraph_adaptive_env.training",
+]
+package-dir = {
+    "skillgraph_adaptive_env" = ".",
+    "skillgraph_adaptive_env.server" = "server",
+    "skillgraph_adaptive_env.training" = "training",
+}
