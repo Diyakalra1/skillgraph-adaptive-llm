@@ -53,8 +53,8 @@ packages = [
     "skillgraph_adaptive_env.server",
     "skillgraph_adaptive_env.training",
 ]
-package-dir = {
-    "skillgraph_adaptive_env" = ".",
-    "skillgraph_adaptive_env.server" = "server",
-    "skillgraph_adaptive_env.training" = "training",
-}
+
+[tool.setuptools.package-dir]
+"skillgraph_adaptive_env" = "."
+"skillgraph_adaptive_env.server" = "server"
+"skillgraph_adaptive_env.training" = "training"
