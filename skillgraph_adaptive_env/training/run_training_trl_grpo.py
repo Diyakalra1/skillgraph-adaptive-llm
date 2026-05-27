@@ -199,12 +199,11 @@ def train_grpo(
     max_samples: int,
     epochs: int,
     learning_rate: float,
-    max_prompt_length: int,
     max_completion_length: int,
 ) -> tuple[Path, list[dict]]:
     try:
         from datasets import Dataset
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoTokenizer
         from trl import GRPOConfig, GRPOTrainer
     except ImportError as exc:
         raise SystemExit(
@@ -217,38 +216,58 @@ def train_grpo(
         [{"prompt": r["prompt"], "env_reward": float(r["env_reward"])} for r in clipped]
     )
 
+    try:
+        from peft import LoraConfig
+    except ImportError:
+        LoraConfig = None  # type: ignore[misc, assignment]
+
     tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "left"
 
-    model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype="auto", device_map="auto")
-
-    def reward_fn(completions, **kwargs):
-        rewards = kwargs.get("env_reward")
-        if rewards is None:
+    def reward_fn(prompts, completions, **kwargs):
+        """TRL passes dataset columns (env_reward) via kwargs."""
+        env_rewards = kwargs.get("env_reward")
+        if env_rewards is None:
             return [0.0] * len(completions)
-        return [float(x) for x in rewards]
+        return [float(x) for x in env_rewards]
 
     ckpt_dir = out_dir / "checkpoints"
+    # TRL's GRPOConfig API changes frequently. As of TRL 1.x (Colab),
+    # `max_prompt_length` is not a supported GRPOConfig argument.
+    # We rely on tokenizer-side truncation defaults and control only completion length here.
     cfg = GRPOConfig(
         output_dir=str(ckpt_dir),
         learning_rate=learning_rate,
         num_train_epochs=epochs,
         per_device_train_batch_size=1,
         gradient_accumulation_steps=4,
-        max_prompt_length=max_prompt_length,
         max_completion_length=max_completion_length,
+        num_generations=2,
         logging_steps=5,
         save_steps=100,
         report_to=[],
+        fp16=True,
+        gradient_checkpointing=True,
     )
 
+    peft_config = None
+    if LoraConfig is not None:
+        peft_config = LoraConfig(
+            r=8,
+            lora_alpha=16,
+            target_modules=["q_proj", "v_proj"],
+            task_type="CAUSAL_LM",
+        )
+
     trainer = GRPOTrainer(
-        model=model,
-        args=cfg,
-        processing_class=tokenizer,
-        train_dataset=train_ds,
+        model=model_id,
         reward_funcs=reward_fn,
+        args=cfg,
+        train_dataset=train_ds,
+        processing_class=tokenizer,
+        peft_config=peft_config,
     )
     train_result = trainer.train()
     final_dir = ckpt_dir / "final"
@@ -294,7 +313,6 @@ def main() -> None:
     parser.add_argument("--max-samples", type=int, default=120, help="Max rollout rows used for GRPO.")
     parser.add_argument("--epochs", type=int, default=1, help="GRPO training epochs.")
     parser.add_argument("--learning-rate", type=float, default=2e-5, help="GRPO learning rate.")
-    parser.add_argument("--max-prompt-length", type=int, default=256, help="GRPO max prompt length.")
     parser.add_argument("--max-completion-length", type=int, default=64, help="GRPO max completion length.")
     parser.add_argument("--collect-only", action="store_true", help="Only build rollout dataset.")
     parser.add_argument("--train-only", action="store_true", help="Only run GRPO using existing dataset.")
@@ -359,7 +377,6 @@ def main() -> None:
         max_samples=args.max_samples,
         epochs=args.epochs,
         learning_rate=args.learning_rate,
-        max_prompt_length=args.max_prompt_length,
         max_completion_length=args.max_completion_length,
     )
     _plot_training_loss(train_logs, plots_dir)
