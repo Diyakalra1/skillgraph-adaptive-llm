@@ -216,11 +216,6 @@ def train_grpo(
         [{"prompt": r["prompt"], "env_reward": float(r["env_reward"])} for r in clipped]
     )
 
-    try:
-        from peft import LoraConfig
-    except ImportError:
-        LoraConfig = None  # type: ignore[misc, assignment]
-
     tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -252,22 +247,16 @@ def train_grpo(
         gradient_checkpointing=True,
     )
 
-    peft_config = None
-    if LoraConfig is not None:
-        peft_config = LoraConfig(
-            r=8,
-            lora_alpha=16,
-            target_modules=["q_proj", "v_proj"],
-            task_type="CAUSAL_LM",
-        )
-
     trainer = GRPOTrainer(
         model=model_id,
         reward_funcs=reward_fn,
         args=cfg,
         train_dataset=train_ds,
         processing_class=tokenizer,
-        peft_config=peft_config,
+        # Note: enabling PEFT/LoRA on Colab can trigger `torchao` version conflicts
+        # (PEFT tries torchao-backed LoRA when torchao is present). Keep training
+        # dependency-minimal and stable by using vanilla GRPO fine-tuning here.
+        peft_config=None,
     )
     train_result = trainer.train()
     final_dir = ckpt_dir / "final"
