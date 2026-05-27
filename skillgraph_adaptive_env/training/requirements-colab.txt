@@ -1,0 +1,6 @@
+# Minimal deps for Colab three-model + env rollouts (no TRL/torch pins).
+# Install BEFORE: pip install -e skillgraph_adaptive_env
+openenv-core[core]>=0.2.2,<0.4
+matplotlib>=3.9.0
+huggingface-hub>=0.20.0
+openai>=1.0.0
