@@ -1,5 +1,0 @@
-{
-  "baseline_avg_reward": 0.309,
-  "baseline_success_rate": 0.3514,
-  "note": "collect-only mode; no GRPO training performed"
-}
