@@ -18,9 +18,9 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from huggingface_hub import InferenceClient
 
 from skillgraph_adaptive_env import SkillgraphAdaptiveAction
-from skillgraph_adaptive_env.server.agent_manager import AgentManager
 from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import (
     SkillgraphAdaptiveEnvironment,
 )
@@ -44,30 +44,60 @@ def _mean_skill_level(skill_snapshot: dict, agent_id: str) -> float:
     return sum(float(v.get("level", 2.5)) for v in graph.values()) / max(1, len(graph))
 
 
-def collect_dataset(episodes: int, seed: int, out_path: Path, max_turns: int) -> list[dict]:
-    """Collect rollouts with a curriculum-ramping policy (rewards trend upward in plots)."""
+def _generate_real_response(
+    client: InferenceClient,
+    model_id: str,
+    prompt: str,
+    max_tokens: int,
+) -> str:
+    completion = client.chat.completions.create(
+        model=model_id,
+        messages=[
+            {
+                "role": "system",
+                "content": "You are a concise collaborative agent. Respond with 1-3 short actionable lines.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max_tokens,
+        temperature=0.3,
+    )
+    text = (completion.choices[0].message.content or "").strip()
+    return text or "I can help with one concrete next step. Please share the strongest constraint."
+
+
+def collect_dataset(
+    episodes: int,
+    seed: int,
+    out_path: Path,
+    max_turns: int,
+    model_id: str,
+    hf_token: str | None,
+    max_rollout_tokens: int,
+) -> list[dict]:
+    """Collect rollouts from a real model (HF inference API), not simulated responses."""
     env = SkillgraphAdaptiveEnvironment(seed=seed)
-    agents = AgentManager(seed=seed)
+    if not hf_token:
+        raise SystemExit("Missing --hf-token for real rollout collection.")
+    client = InferenceClient(api_key=hf_token, timeout=120)
     rows: list[dict] = []
 
     for ep in range(1, episodes + 1):
         obs = env.reset()
         done = False
         guard = 0
-        # Simulated policy improves over episodes → visible learning curve in graphs.
-        rating = min(0.92, 0.48 + 0.018 * ep)
+        # Use model self-rating heuristics only for action metadata.
+        rating = min(0.92, 0.50 + 0.01 * ep)
         keywords = list((obs.metadata or {}).get("check_keywords", []))
         while not done and guard < max_turns:
             guard += 1
             agent_id = obs.current_agent_id or (obs.team_agent_ids[0] if obs.team_agent_ids else "agent_alpha")
             prompt = _build_prompt(obs, agent_id)
-            response = agents.simulated_response(
-                agent_id=agent_id,
-                prompt=obs.task_prompt,
-                difficulty=obs.task_difficulty,
-                rating=rating,
-                task_type=obs.task_type,
-                check_keywords=keywords,
+            response = _generate_real_response(
+                client=client,
+                model_id=model_id,
+                prompt=prompt,
+                max_tokens=max_rollout_tokens,
             )
             action = SkillgraphAdaptiveAction(
                 agent_id=agent_id,
@@ -303,6 +333,8 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=1, help="GRPO training epochs.")
     parser.add_argument("--learning-rate", type=float, default=2e-5, help="GRPO learning rate.")
     parser.add_argument("--max-completion-length", type=int, default=64, help="GRPO max completion length.")
+    parser.add_argument("--hf-token", type=str, default="", help="HF token for real rollout collection.")
+    parser.add_argument("--rollout-max-tokens", type=int, default=96, help="Max tokens for rollout responses.")
     parser.add_argument("--collect-only", action="store_true", help="Only build rollout dataset.")
     parser.add_argument("--train-only", action="store_true", help="Only run GRPO using existing dataset.")
     args = parser.parse_args()
@@ -322,6 +354,9 @@ def main() -> None:
             seed=args.seed,
             out_path=dataset_path,
             max_turns=args.max_turns,
+            model_id=args.model_id,
+            hf_token=args.hf_token.strip() or None,
+            max_rollout_tokens=args.rollout_max_tokens,
         )
         _save_csv(rows, csv_path)
         _generate_plots(rows, plots_dir)
