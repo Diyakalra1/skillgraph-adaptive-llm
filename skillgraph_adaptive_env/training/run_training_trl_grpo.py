@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -50,20 +51,29 @@ def _generate_real_response(
     prompt: str,
     max_tokens: int,
 ) -> str:
-    completion = client.chat.completions.create(
-        model=model_id,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are a concise collaborative agent. Respond with 1-3 short actionable lines.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max_tokens,
-        temperature=0.3,
-    )
-    text = (completion.choices[0].message.content or "").strip()
-    return text or "I can help with one concrete next step. Please share the strongest constraint."
+    last_err: Exception | None = None
+    for attempt in range(4):
+        try:
+            completion = client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a concise collaborative agent. Respond with 1-3 short actionable lines.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                max_tokens=max_tokens,
+                temperature=0.3,
+            )
+            text = (completion.choices[0].message.content or "").strip()
+            if not text:
+                raise RuntimeError("Empty response from model; strict mode forbids fallback text.")
+            return text
+        except Exception as exc:
+            last_err = exc
+            time.sleep(1.2 * (attempt + 1))
+    raise RuntimeError(f"Model generation failed after retries for {model_id}: {last_err}")
 
 
 def collect_dataset(
@@ -71,7 +81,7 @@ def collect_dataset(
     seed: int,
     out_path: Path,
     max_turns: int,
-    model_id: str,
+    rollout_model_id: str,
     hf_token: str | None,
     max_rollout_tokens: int,
 ) -> list[dict]:
@@ -93,12 +103,18 @@ def collect_dataset(
             guard += 1
             agent_id = obs.current_agent_id or (obs.team_agent_ids[0] if obs.team_agent_ids else "agent_alpha")
             prompt = _build_prompt(obs, agent_id)
+            print(
+                f"[EP {ep:02d} | TURN {guard:02d}] {agent_id} | "
+                f"task={obs.task_type} | difficulty={obs.task_difficulty:.2f}"
+            )
+            print(f"Q: {prompt}")
             response = _generate_real_response(
                 client=client,
-                model_id=model_id,
+                model_id=rollout_model_id,
                 prompt=prompt,
                 max_tokens=max_rollout_tokens,
             )
+            print(f"A: {response}\n")
             action = SkillgraphAdaptiveAction(
                 agent_id=agent_id,
                 task_id=obs.task_id,
@@ -329,6 +345,12 @@ def main() -> None:
         help="Output directory for dataset, summary, and checkpoints.",
     )
     parser.add_argument("--model-id", type=str, default="Qwen/Qwen2.5-0.5B-Instruct", help="HF model for GRPO.")
+    parser.add_argument(
+        "--rollout-model-id",
+        type=str,
+        default="google/gemma-3-1b-it:featherless-ai",
+        help="HF inference model used to generate rollout responses.",
+    )
     parser.add_argument("--max-samples", type=int, default=120, help="Max rollout rows used for GRPO.")
     parser.add_argument("--epochs", type=int, default=1, help="GRPO training epochs.")
     parser.add_argument("--learning-rate", type=float, default=2e-5, help="GRPO learning rate.")
@@ -354,7 +376,7 @@ def main() -> None:
             seed=args.seed,
             out_path=dataset_path,
             max_turns=args.max_turns,
-            model_id=args.model_id,
+            rollout_model_id=args.rollout_model_id,
             hf_token=args.hf_token.strip() or None,
             max_rollout_tokens=args.rollout_max_tokens,
         )
