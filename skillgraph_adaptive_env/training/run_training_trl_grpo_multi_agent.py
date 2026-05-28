@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -38,6 +39,12 @@ AGENT_MODEL_MAP_DEFAULT = {
     "agent_gamma": "google/gemma-3-1b-it",
 }
 
+ROLLOUT_FALLBACK_MODELS = [
+    "Qwen/Qwen2.5-0.5B-Instruct",
+    "meta-llama/Llama-3.2-1B-Instruct",
+    "microsoft/Phi-3.5-mini-instruct",
+]
+
 
 def _build_prompt(obs, agent_id: str) -> str:
     return (
@@ -56,20 +63,34 @@ def _generate_response(
     prompt: str,
     max_tokens: int,
 ) -> str:
-    completion = client.chat.completions.create(
-        model=model_id,
-        messages=[
-            {
-                "role": "system",
-                "content": "You are concise, collaborative, and action-oriented.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max_tokens,
-        temperature=0.3,
-    )
-    text = (completion.choices[0].message.content or "").strip()
-    return text or "I propose a concrete next step with one supporting rationale."
+    models_to_try = [model_id] + [m for m in ROLLOUT_FALLBACK_MODELS if m != model_id]
+    last_err: Exception | None = None
+    for candidate in models_to_try:
+        for attempt in range(3):
+            try:
+                completion = client.chat.completions.create(
+                    model=candidate,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "You are concise, collaborative, and action-oriented.",
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=0.3,
+                )
+                text = (completion.choices[0].message.content or "").strip()
+                return text or "I propose a concrete next step with one supporting rationale."
+            except Exception as exc:
+                last_err = exc
+                # Backoff for transient provider/router failures (5xx).
+                time.sleep(1.2 * (attempt + 1))
+                continue
+
+    # Keep rollout alive if providers are flaky; don't lose the entire run.
+    msg = str(last_err)[:180] if last_err else "unknown provider error"
+    return f"I propose a minimal actionable next step. (fallback due to provider error: {msg})"
 
 
 def collect_joint_rollouts(
