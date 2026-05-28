@@ -34,8 +34,8 @@ from skillgraph_adaptive_env.server.skillgraph_adaptive_env_environment import (
 
 AGENT_MODEL_MAP_DEFAULT = {
     "agent_alpha": "meta-llama/Llama-3.2-1B-Instruct",
-    "agent_beta": "Qwen/Qwen2.5-1.5B-Instruct:featherless-ai",
-    "agent_gamma": "google/gemma-3-1b-it:featherless-ai",
+    "agent_beta": "Qwen/Qwen2.5-1.5B-Instruct",
+    "agent_gamma": "google/gemma-3-1b-it",
 }
 
 
