@@ -275,11 +275,37 @@ def train_grpo(
     tokenizer.padding_side = "left"
 
     def reward_fn(prompts, completions, **kwargs):
-        """TRL passes dataset columns (env_reward) via kwargs."""
-        env_rewards = kwargs.get("env_reward")
-        if env_rewards is None:
-            return [0.0] * len(completions)
-        return [float(x) for x in env_rewards]
+        """Completion-dependent reward to produce non-degenerate GRPO signal."""
+        env_rewards = kwargs.get("env_reward") or [0.0] * len(completions)
+
+        def _to_text(comp) -> str:
+            if isinstance(comp, str):
+                return comp
+            if isinstance(comp, list) and comp and isinstance(comp[0], dict):
+                return str(comp[0].get("content", ""))
+            if isinstance(comp, dict):
+                return str(comp.get("content", ""))
+            return str(comp)
+
+        rewards: list[float] = []
+        for base, comp in zip(env_rewards, completions):
+            text = _to_text(comp).strip()
+            low = text.lower()
+            words = low.split()
+
+            # Length prior: avoid ultra-short/empty or rambling completions.
+            len_score = 0.12 if 10 <= len(words) <= 80 else -0.08
+
+            # Structure prior aligned with AMASES prompt style.
+            structure_score = 0.08 if any(k in low for k in ("proposal", "evidence", "next", "1.", "2.", "3.")) else 0.0
+
+            # Repetition penalty to discourage low-diversity outputs.
+            uniq = len(set(words))
+            repeat_pen = -0.10 if uniq < max(3, int(0.35 * max(1, len(words)))) else 0.0
+
+            rewards.append(float(base) + len_score + structure_score + repeat_pen)
+
+        return rewards
 
     ckpt_dir = out_dir / "checkpoints"
     # TRL's GRPOConfig API changes frequently. As of TRL 1.x (Colab),
