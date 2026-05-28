@@ -50,6 +50,7 @@ def _generate_real_response(
     model_id: str,
     prompt: str,
     max_tokens: int,
+    temperature: float,
 ) -> str:
     last_err: Exception | None = None
     for attempt in range(4):
@@ -64,7 +65,7 @@ def _generate_real_response(
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=max_tokens,
-                temperature=0.3,
+                temperature=temperature,
             )
             text = (completion.choices[0].message.content or "").strip()
             if not text:
@@ -84,6 +85,7 @@ def collect_dataset(
     rollout_model_id: str,
     hf_token: str | None,
     max_rollout_tokens: int,
+    rollout_temperature: float,
 ) -> list[dict]:
     """Collect rollouts from a real model (HF inference API), not simulated responses."""
     env = SkillgraphAdaptiveEnvironment(seed=seed)
@@ -113,6 +115,7 @@ def collect_dataset(
                 model_id=rollout_model_id,
                 prompt=prompt,
                 max_tokens=max_rollout_tokens,
+                temperature=rollout_temperature,
             )
             print(f"A: {response}\n")
             action = SkillgraphAdaptiveAction(
@@ -246,6 +249,10 @@ def train_grpo(
     epochs: int,
     learning_rate: float,
     max_completion_length: int,
+    batch_size: int,
+    grad_accum_steps: int,
+    num_generations: int,
+    grpo_temperature: float,
 ) -> tuple[Path, list[dict]]:
     try:
         from datasets import Dataset
@@ -278,14 +285,28 @@ def train_grpo(
     # TRL's GRPOConfig API changes frequently. As of TRL 1.x (Colab),
     # `max_prompt_length` is not a supported GRPOConfig argument.
     # We rely on tokenizer-side truncation defaults and control only completion length here.
+    # TRL requires: global_train_batch_size % num_generations == 0.
+    # On single-GPU Colab, global_train_batch_size == per_device_train_batch_size.
+    if num_generations <= 0:
+        raise SystemExit("--num-generations must be >= 1")
+    if batch_size <= 0:
+        raise SystemExit("--batch-size must be >= 1")
+    if batch_size % num_generations != 0:
+        print(
+            f"[warn] batch_size={batch_size} not divisible by num_generations={num_generations}; "
+            f"using batch_size={num_generations} to satisfy TRL."
+        )
+        batch_size = num_generations
+
     cfg = GRPOConfig(
         output_dir=str(ckpt_dir),
         learning_rate=learning_rate,
         num_train_epochs=epochs,
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=batch_size,
+        gradient_accumulation_steps=grad_accum_steps,
         max_completion_length=max_completion_length,
-        num_generations=2,
+        num_generations=num_generations,
+        temperature=grpo_temperature,
         logging_steps=5,
         save_steps=100,
         report_to=[],
@@ -355,8 +376,13 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=1, help="GRPO training epochs.")
     parser.add_argument("--learning-rate", type=float, default=2e-5, help="GRPO learning rate.")
     parser.add_argument("--max-completion-length", type=int, default=64, help="GRPO max completion length.")
+    parser.add_argument("--batch-size", type=int, default=2, help="Per-device GRPO batch size.")
+    parser.add_argument("--grad-accum-steps", type=int, default=2, help="Gradient accumulation steps.")
+    parser.add_argument("--num-generations", type=int, default=2, help="Completions per prompt in GRPO.")
+    parser.add_argument("--grpo-temperature", type=float, default=0.9, help="Sampling temperature for GRPO generation.")
     parser.add_argument("--hf-token", type=str, default="", help="HF token for real rollout collection.")
     parser.add_argument("--rollout-max-tokens", type=int, default=96, help="Max tokens for rollout responses.")
+    parser.add_argument("--rollout-temperature", type=float, default=0.7, help="Sampling temperature during rollout collection.")
     parser.add_argument("--collect-only", action="store_true", help="Only build rollout dataset.")
     parser.add_argument("--train-only", action="store_true", help="Only run GRPO using existing dataset.")
     args = parser.parse_args()
@@ -379,6 +405,7 @@ def main() -> None:
             rollout_model_id=args.rollout_model_id,
             hf_token=args.hf_token.strip() or None,
             max_rollout_tokens=args.rollout_max_tokens,
+            rollout_temperature=args.rollout_temperature,
         )
         _save_csv(rows, csv_path)
         _generate_plots(rows, plots_dir)
@@ -424,6 +451,10 @@ def main() -> None:
         epochs=args.epochs,
         learning_rate=args.learning_rate,
         max_completion_length=args.max_completion_length,
+        batch_size=args.batch_size,
+        grad_accum_steps=args.grad_accum_steps,
+        num_generations=args.num_generations,
+        grpo_temperature=args.grpo_temperature,
     )
     _plot_training_loss(train_logs, plots_dir)
 
