@@ -92,20 +92,22 @@ This yields per-agent divergence and measurable long-horizon development.
 - `server/skill_graph.py`: persistent per-agent skill state
 - `server/scoring.py`: deterministic reward decomposition and penalties
 - `server/curriculum_engine.py`: adaptive task selection
-- `training/run_training_three_models.py`: three-model training/evaluation pipeline
-- `ui/app.py`: Streamlit log and graph viewer
+- `training/run_training_trl_grpo.py`: rollout + GRPO training pipeline (active)
 
 ## TRL GRPO Training (RL Fine-Tuning)
 
 This is the reinforcement-learning training path (TRL GRPO) using rewards from your environment:
 
 ```bash
-pip install -e ".[trl]"
+pip install -e .
+pip install -r training/requirements-colab.txt
 python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
-  --episodes 40 \
+  --episodes 10 \
   --seed 7 \
   --model-id Qwen/Qwen2.5-0.5B-Instruct \
-  --out-dir training/runs/trl_grpo
+  --rollout-model-id meta-llama/Llama-3.2-1B-Instruct \
+  --hf-token <YOUR_HF_TOKEN> \
+  --out-dir training/runs/trl_grpo_tuned_10ep
 ```
 
 Artifacts:
@@ -113,95 +115,12 @@ Artifacts:
 - `summary.json`
 - `checkpoints/final/` (fine-tuned model)
 
-Colab-friendly pins: `training/requirements-trl.txt`
-
-## Three-Model Training (HF Inference Evaluation)
-
-Run from repository root:
-
-```bash
-pip install -e skillgraph_adaptive_env
-python -m skillgraph_adaptive_env.training.run_training_three_models \
-  --episodes 3 \
-  --seed 7 \
-  --hf-token <YOUR_HF_TOKEN> \
-  --out-dir training/runs/hf_three_models
-```
-
-## Output Artifacts
-
-Generated under `training/runs/hf_three_models/`:
-
-- `episode_logs.csv`
-- `episode_logs.jsonl`
-- `summary.json`
-- `reward_vs_steps.png`
-- `skill_evolution.png`
-- `weak_to_strong_transition.png`
-
-## Log Schema Reference (Three-Model Run)
-
-Each row in `episode_logs.csv` (and each JSON object in `episode_logs.jsonl`) includes:
-
-- run context: `episode`, `turn`, `task_id`, `task_type`, `curriculum_bucket`
-- model context: `agent_id`, `model_id`, `response_text`
-- task context: `skills`, `difficulty`, `self_rating`
-- outcomes: `success`, `reward`
-- reward decomposition: `task_score`, `skill_improvement`, `consistency`, `skill_drop`
-
-Example JSONL row shape:
-
-```json
-{
-  "episode": 1,
-  "task_id": "collaborative_medium",
-  "task_type": "collaborative",
-  "agent_id": "agent_alpha",
-  "model_id": "meta-llama/Llama-3.2-1B-Instruct",
-  "turn": 2,
-  "skills": "collaboration,planning",
-  "difficulty": 3.0,
-  "curriculum_bucket": "cold_start_diagnostic",
-  "self_rating": 0.57,
-  "success": false,
-  "reward": 0.0915,
-  "task_score": 0.0,
-  "skill_improvement": 0.12,
-  "consistency": 0.06,
-  "skill_drop": 0.0,
-  "response_text": "..."
-}
-```
-
 ## Graph Reference
 
 - `reward_vs_steps.png`: reward trend by episode-turn; useful for stability and variance checks.
 - `skill_evolution.png`: mean skill trajectory per agent; shows relative learning divergence.
 - `weak_to_strong_transition.png`: tracks weakest starting agent through training progression.
 
-## Demo Artifacts (Committed Run)
-
-Repository includes example outputs at `training/runs/final_run/` (logs, summary, and the three plots above).
-
-## UI Dashboard
-
-Path: `ui/app.py`
-
-```bash
-pip install -e .
-streamlit run skillgraph_adaptive_env/ui/app.py
-```
-
-Use the run-directory selector in the UI to load `training/runs/final_run` or any output folder from `run_training_three_models.py`.
-
 ## Blog Post
 
 Draft placeholder: `blogpost.md` (edit in this folder).
-
-## Integration Notes
-
-- Core typed interfaces: `models.py`
-- Environment entrypoint: `server/skillgraph_adaptive_env_environment.py`
-- Server app wiring: `server/app.py`
-- Client adapter: `client.py`
-- OpenEnv integration guide: `INTEGRATION_GUIDE.md`
