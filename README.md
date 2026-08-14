@@ -104,3 +104,42 @@ Typical run output directory:
 - Early episodes are fixed diagnostics (`collaborative`, `competitive`, `mixed_motive`, `peer_teaching`, `debate`), then curriculum switches to weak-skill targeting.
 - Success can remain sparse under strict tasks; monitor reward components and skill evolution jointly.
 - For the latest reproducible run recipe, prefer the notebook at `skillgraph_adaptive_env/training/colab_day1_sprint.ipynb`.
+
+
+
+
+
+
+## 📁 Project Structure
+
+```text
+skillgraph-adaptive-llm/
+│
+├── README.md                               # Project documentation
+│
+└── skillgraph_adaptive_env/
+    │
+    ├── models.py                          # Action and observation schemas
+    ├── client.py                          # Client for interacting with the environment
+    ├── openenv.yaml                       # OpenEnv configuration
+    ├── pyproject.toml                    # Dependencies and package configuration
+    │
+    ├── server/
+    │   ├── app.py                         # Server entry point
+    │   ├── skillgraph_adaptive_env_environment.py
+    │   │                                    # Core adaptive environment logic
+    │   ├── agent_manager.py               # Agent registry and team formation
+    │   ├── curriculum_engine.py           # Adaptive task selection engine
+    │   ├── task_library.py                # Multi-agent task definitions
+    │   ├── skill_graph.py                 # Skill tracking and progression graph
+    │   ├── interaction_memory.py          # Public and private interaction memory
+    │   ├── scoring.py                     # Reward computation and evaluation logic
+    │   └── model_runtime.py               # Hugging Face model runtime wrapper
+    │
+    └── training/
+        ├── run_training_trl_grpo.py        # GRPO reinforcement learning training pipeline
+        └── colab_day1_sprint.ipynb         # Colab notebook for experimentation and training
+```
+
+
+
