@@ -143,3 +143,44 @@ skillgraph-adaptive-llm/
 
 
 
+
+## Reward logic
+
+```text
+Final Reward =
+0.24 × Task Success
++ 0.31 × Skill Demonstration
++ 0.21 × Collaboration Quality
++ 0.16 × Learning Evidence
++ 0.08 × Meta-Cognition
+− Penalties
+```
+
+| Component                 | Meaning                                                                                                           | Weight   | Code Implementation                                                                                                                    |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **Task Success**          | Checks whether the agents solved the task and how efficiently they did it.                                        | **0.24** | `_task_success_score()` uses `agreement_reached`, `quality`, and `turns_used / max_turns`.                                             |
+| **Skill Demonstration**   | Measures whether the response shows the expected target skill (negotiation, planning, synthesis, teaching, etc.). | **0.31** | `_skill_demo_score()` searches for task-specific reasoning patterns such as `counter`, `trade-off`, `evidence`, `plan`, and `example`. |
+| **Collaboration Quality** | Evaluates whether the agent contributes meaningfully instead of repeating generic responses.                      | **0.21** | `_collab_quality()` combines **context usage**, **turn balance**, and **repetition detection**.                                        |
+| **Learning Evidence**     | Rewards adaptation, revision, and improvement across turns.                                                       | **0.16** | `_learning_evidence()` checks for signals such as `revise`, `update`, `improve`, and other novel follow-up behavior.                   |
+| **Meta-Cognition**        | Rewards realistic self-assessment rather than overconfidence.                                                     | **0.08** | `_meta_cognition()` compares `self_rating` with the internally computed quality score and rewards smaller differences.                 |
+
+---
+
+
+
+---
+
+## 🚫 Penalty System (Anti-Reward Hacking)
+
+The environment subtracts penalties from the rubric reward to prevent agents from exploiting the evaluation rules.
+| Penalty | Trigger | Purpose | Deduction |
+|----------|---------|---------|-----------|
+| **instant_agreement_hack** | Agents agree within the first 1–2 turns without real reasoning. | Prevents trivial task completion. | **0.18** |
+| **proposal_repetition** | The same proposal is repeated across recent turns. | Discourages looping behavior. | **0.08** |
+| **context_ignoring** | Expected task keywords or context are missing. | Forces responses to stay grounded in the task. | **0.05** |
+| **timeout_failure** | Collaborative tasks reach the maximum turn limit without convergence. | Penalizes inefficient coordination. | **0.12** |
+| **incoherent_output** | Extremely short or nonsensical responses. | Maintains minimum response quality. | **0.18** |
+| **self_assessment_inflation** | Self-rating is much higher than the computed quality score. | Prevents confidence gaming. | **0.08** |
+| **keyword_stuffing** | Excessive repetition of rubric keywords. | Stops agents from earning reward through token spam. | **0.10–0.20** |
+| **low_task_alignment** | Response has very low overlap with the actual prompt details. | Prevents generic LLM answers unrelated to the task. | **0.06** |
+
