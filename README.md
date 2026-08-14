@@ -51,6 +51,23 @@ python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
   --out-dir training/runs/trl_grpo_tuned_10ep
 ```
 
+| Task Category | Difficulty Tier | Task Name (ID) | Skills Tested | Difficulty Score |
+|---|---|---|---|---:|
+| Collaborative | Easy | `collaborative_easy` | collaboration, problem_decomposition, communication | 2.0 |
+| Collaborative | Medium | `collaborative_medium` | information_synthesis, collaboration, communication | 3.0 |
+| Collaborative | Hard | `collaborative_hard` | information_synthesis, strategic_reasoning | 4.4 |
+| Competitive | Easy | `competitive_easy` | negotiation, competitive_strategy, opponent_modeling | 2.2 |
+| Competitive | Medium | `competitive_medium` | competitive_strategy, risk_assessment, opponent_modeling | 3.1 |
+| Competitive | Hard | `competitive_hard` | competitive_strategy, strategic_reasoning, negotiation | 4.5 |
+| Mixed Motive | Easy | `mixed_motive_easy` | collaboration, strategic_reasoning, negotiation | 2.4 |
+| Mixed Motive | Medium | `mixed_motive_medium` | strategic_reasoning, risk_assessment, collaboration | 3.3 |
+| Mixed Motive | Hard | `mixed_motive_hard` | strategic_reasoning, collaboration, long_term_planning | 4.6 |
+| Peer Teaching | Easy | `peer_teaching_easy` | communication, meta_learning, knowledge_transfer | 2.1 |
+| Peer Teaching | Medium | `peer_teaching_medium` | communication, meta_learning | 3.0 |
+| Peer Teaching | Hard | `peer_teaching_hard` | meta_learning, communication | 4.2 |
+| Debate | Easy | `debate_easy` | information_synthesis, communication, argumentation | 2.6 |
+| Debate | Medium | `debate_medium` | argumentation, information_synthesis | 3.4 |
+| Debate | Hard | `debate_hard` | argumentation, strategic_reasoning | 4.8 |
 Train again on same dataset (no new rollouts):
 
 ```bash
