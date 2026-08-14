@@ -50,7 +50,41 @@ python -m skillgraph_adaptive_env.training.run_training_trl_grpo \
   --grpo-temperature 0.9 \
   --out-dir training/runs/trl_grpo_tuned_10ep
 ```
+```mermaid
+flowchart TD
+    A["Skill Graph Initialized<br/>level = 2.5 (±offset per agent: alpha 2.50, beta 2.45, gamma 2.55)<br/>confidence = 0.1"] --> B
 
+    B["Cold Start: Episodes 1-5<br/>Fixed medium-difficulty task, one per type:<br/>collaborative → competitive → mixed_motive →<br/>peer_teaching → debate<br/>(same for every agent, no adaptation)"] --> C
+
+    C{"Episode 6 onward"} --> E["Select Anchor Agent<br/>= agent with globally weakest skill<br/>(lowest level × max(confidence, 0.15)<br/>across all agents, all skills)"]
+
+    E --> F{"episode_idx % 20 == 0 ?"}
+    F -->|Yes| G["Verification check:<br/>fixed diagnostic task<br/>(cycles peer_teaching → competitive →<br/>collaborative → debate → mixed_motive)<br/>no randomized surface, medium difficulty<br/>is_verification = True"]
+    F -->|No| H["Adaptive path"]
+
+    H --> H1["Read anchor agent's skill scores<br/>(from skill_graph snapshot)"]
+    H1 --> H2["Find anchor's single weakest skill:<br/>key = level × max(confidence, 0.15)<br/>lowest key wins"]
+    H2 --> H3{"Bucket weak_level"}
+    H3 -->|"< 2.5"| H4a["Easy"]
+    H3 -->|"2.5 – 3.5"| H4b["Medium"]
+    H3 -->|"> 3.5"| H4c["Hard"]
+    H4a --> H5
+    H4b --> H5
+    H4c --> H5["Select task from library:<br/>must test weak_skill AND<br/>match bucket's difficulty range<br/>(fallback: difficulty-only, then any task)"]
+    H5 --> H6["Instantiate task:<br/>fill randomized surface slots<br/>tag target_skill = weak_skill"]
+
+    G --> D
+    H6 --> D["Form team<br/>(AgentManager.form_team)<br/>shuffles agents, takes agent_count for this task"]
+    D --> I["Reset InteractionMemory<br/>post task prompt publicly,<br/>assign each agent private preference"]
+
+    I --> J["Agents perform task<br/>(turn-limited: 8 / 12 / 15 turns<br/>depending on difficulty tier)"]
+    J --> K["Episode ends:<br/>task solved OR max_turns reached"]
+    K --> L["Reward function scores transcript<br/>per tested skill (2-3 skills per task)"]
+    L --> M["For each tested skill, each participating agent:<br/>target_level = reward_score × 5.0<br/>new_level = 0.9 × old_level + 0.1 × target_level<br/>(EMA update)"]
+    M --> N["Update streak, confidence (n/20 capped at 1.0),<br/>learning_velocity, plateau<br/>per skill"]
+    N --> O["Skill Graph updated"]
+    O --> C
+```
 | Task Category | Difficulty Tier | Task Name (ID) | Skills Tested | Difficulty Score |
 |---|---|---|---|---:|
 | Collaborative | Easy | `collaborative_easy` | collaboration, problem_decomposition, communication | 2.0 |
