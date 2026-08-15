@@ -13,13 +13,37 @@ AMASES (Adaptive Multi-Agent Skill Evolution System) is an OpenEnv-based multi-a
 
 ## Project structure
 
-- `skillgraph_adaptive_env/server/skillgraph_adaptive_env_environment.py` - environment reset/step loop
-- `skillgraph_adaptive_env/server/curriculum_engine.py` - diagnostic + adaptive task selection
-- `skillgraph_adaptive_env/server/scoring.py` - merged reward + component penalties
-- `skillgraph_adaptive_env/server/skill_graph.py` - skill/confidence tracking
-- `skillgraph_adaptive_env/training/run_training_trl_grpo.py` - rollout + GRPO training pipeline
-- `skillgraph_adaptive_env/training/colab_day1_sprint.ipynb` - Colab workflow
-- `skillgraph_adaptive_env/training/requirements-colab.txt` - single source requirements
+## 📁 Project Structure
+
+```text
+skillgraph-adaptive-llm/
+│
+├── README.md                               # Project documentation
+│
+└── skillgraph_adaptive_env/
+    │
+    ├── models.py                          # Action and observation schemas
+    ├── client.py                          # Client for interacting with the environment
+    ├── openenv.yaml                       # OpenEnv configuration
+    ├── pyproject.toml                    # Dependencies and package configuration
+    │
+    ├── server/
+    │   ├── app.py                         # Server entry point
+    │   ├── skillgraph_adaptive_env_environment.py
+    │   │                                    # Core adaptive environment logic
+    │   ├── agent_manager.py               # Agent registry and team formation
+    │   ├── curriculum_engine.py           # Adaptive task selection engine
+    │   ├── task_library.py                # Multi-agent task definitions
+    │   ├── skill_graph.py                 # Skill tracking and progression graph
+    │   ├── interaction_memory.py          # Public and private interaction memory
+    │   ├── scoring.py                     # Reward computation and evaluation logic
+    │   └── model_runtime.py               # Hugging Face model runtime wrapper
+    │
+    └── training/
+        ├── run_training_trl_grpo.py        # GRPO reinforcement learning training pipeline
+        └── colab_day1_sprint.ipynb         # Colab notebook for experimentation and training
+```
+
 
 ## Training workflow (current)
 
@@ -144,36 +168,6 @@ Typical run output directory:
 
 
 
-## 📁 Project Structure
-
-```text
-skillgraph-adaptive-llm/
-│
-├── README.md                               # Project documentation
-│
-└── skillgraph_adaptive_env/
-    │
-    ├── models.py                          # Action and observation schemas
-    ├── client.py                          # Client for interacting with the environment
-    ├── openenv.yaml                       # OpenEnv configuration
-    ├── pyproject.toml                    # Dependencies and package configuration
-    │
-    ├── server/
-    │   ├── app.py                         # Server entry point
-    │   ├── skillgraph_adaptive_env_environment.py
-    │   │                                    # Core adaptive environment logic
-    │   ├── agent_manager.py               # Agent registry and team formation
-    │   ├── curriculum_engine.py           # Adaptive task selection engine
-    │   ├── task_library.py                # Multi-agent task definitions
-    │   ├── skill_graph.py                 # Skill tracking and progression graph
-    │   ├── interaction_memory.py          # Public and private interaction memory
-    │   ├── scoring.py                     # Reward computation and evaluation logic
-    │   └── model_runtime.py               # Hugging Face model runtime wrapper
-    │
-    └── training/
-        ├── run_training_trl_grpo.py        # GRPO reinforcement learning training pipeline
-        └── colab_day1_sprint.ipynb         # Colab notebook for experimentation and training
-```
 
 
 
