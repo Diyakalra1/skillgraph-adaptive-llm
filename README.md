@@ -1,19 +1,106 @@
-# skillgraph-adaptive-llm
+# AMASES - Adaptive Mutli Agent Skill Evolution System
 
-AMASES (Adaptive Multi-Agent Skill Evolution System) is an OpenEnv-based multi-agent environment with:
+## 1. Overview
+LLMs can be highly capable in one skill while being comparatively weak in others, yet a fixed training curriculum treats their learning needs uniformly. AMASES addresses this by acting like a personalized gym for three LLM agents — Alpha, Beta, and Gamma. It is an OpenEnv-based reinforcement learning environment that continuously tracks their skills, identifies weaknesses, assigns targeted multi-agent tasks, evaluates performance through a structured reward system, and uses the resulting feedback to determine what they should practice next.
 
-- adaptive curriculum selection,
-- deterministic reward decomposition,
-- per-agent skill graph updates,
-- GRPO training from real rollout responses.
+Instead of asking “What task should the agents solve next?”, AMASES asks “What skill do they need to improve next?”
 
-## Deployed environment
+## Core Idea
 
-- Hugging Face Space: [https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env](https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env)
+        ┌─────────────────┐
+        │   Skill Graph   │
+        │  What is weak?  │
+        └────────┬────────┘
+                 ↓
+        ┌─────────────────┐
+        │    Curriculum   │
+        │ What task next? │
+        └────────┬────────┘
+                 ↓
+        ┌─────────────────┐
+        │   Environment   │
+        │ Agents interact │
+        └────────┬────────┘
+                 ↓
+        ┌─────────────────┐
+        │     Reward      │
+        │ How well did it │
+        │     perform?    │
+        └────────┬────────┘
+                 ↓
+        ┌─────────────────┐
+        │   Skill Graph   │
+        │    Updated      │
+        └────────┬────────┘
+                 │
+                 └──────────→ Next Task
 
-## Project structure
+## 2. Key Features
 
-## 📁 Project Structure
+- **Adaptive Skill-Based Curriculum** — Selects tasks based on the current skill gaps of Alpha, Beta, and Gamma.
+- **Multi-Agent Skill Evolution** — Continuously tracks and evolves the capabilities of all three agents.
+- **Dynamic Difficulty** — Adapts tasks across Easy, Medium, and Hard levels.
+- **Diverse Interaction Scenarios** — Supports collaborative, competitive, mixed-motive, peer-teaching, and debate tasks.
+- **Reward-Driven Learning** — Uses task performance and interaction quality to drive skill improvement.
+- **Periodic Skill Verification** — Periodically tests whether learned skills generalize beyond regular training interactions.
+- **OpenEnv-Based RL Environment** — Provides an environment designed for reinforcement-learning-based LLM training.
+
+
+## 3. Architecture 
+```text
+-------------------           ----------------------------------         -------------        ------------------------------------
+|Skill Graph       |  ------> |5 episodes of Each task category|------->| 6th Episode |------>|       Pick an Anchor Agent        |
+|(Initial values)  |          |    (cold start)                |        |     Flow    |       |   Weakest skill level amoung all  |<----------
+(level = 2.5)      |          ----------------------------------        ---------------       |      skills and all agents        |           |
+(confidence = 0.1) |                                                                          ------------------------------------            |  
+-------------------                                                                                        ↓                                  |
+                                                                                         -----------------------------------------            |
+                                                                                         |      Weak skill = anchor_agent.skill   |           |         
+                                                                                         |   weak_level = anchor_agent.skill.level|           |
+                                                                                         ------------------------------------------           |
+                                                                                                          ↓                                   |     
+                                                                                           --------------------------------                   | 
+                                                                                          |    Chose Easy/ Medium/ Hard    |                  |
+                                                                                          |    depening upon weak level    |                  |
+                                                                                          |        <2.5 -> easy            |                  |
+                                                                                          |        2.5 - 3.5 ->Medium      |                  |
+                                                                                          |        >3.5 ->Hard             |                  |
+                                                                                           --------------------------------                   |
+                                                                                                          ↓                                   |
+                                                                                ┌──────────────────────────────────────────────────────────┐  |
+                                                                                │  Select a task that tests the weak skill and belongs     │  |
+                                                                                │  to the selected difficulty bucket.                      │  |
+                                                                                │                     (Task Library)                       │  |
+                                                                                └──────────────────────────────────────────────────────────┘  |
+                                                                                                          ↓                                   |
+                                                                                            ┌──────────────────────────┐                      |
+                                                                                            │   Agents perform task    │                      |
+                                                                                            └──────────────────────────┘                      |
+                                                                                                          ↓                                   |
+                                                                                            ┌──────────────────────────┐                      |
+                                                                                            │    Reward Calculated     │                      |
+                                                                                            └────────────┬─────────────┘                      |
+                                                                                                         ↓                                    |              
+                                                                                            ┌──────────────────────────┐                      |    
+                                                                                            │ Task solved OR max turns │                      |    
+                                                                                            │ reached → Episode ends   │                      |    
+                                                                                            └────────────┬─────────────┘                      |
+                                                                                                         ↓                                    |
+                                                                                            ┌──────────────────────────┐                      |
+                                                                                            │ Target = 5 × Reward      │                      |
+                                                                                            │ EMA: New = 0.9×Old       │                      |
+                                                                                            │      + 0.1×Target        │                      |
+                                                                                            └────────────┬─────────────┘                      |
+                                                                                                         ↓                                    |             
+                                                                                            ┌──────────────────────────┐                      |   
+                                                                                            │    Skill Graph Updated   │----------------------
+                                                                                            └────────────-─────────────┘
+                                                                                                        
+
+```
+
+
+## 4. Project structure
 
 ```text
 skillgraph-adaptive-llm/
@@ -44,6 +131,7 @@ skillgraph-adaptive-llm/
         └── colab_day1_sprint.ipynb         # Colab notebook for experimentation and training
 ```
 
+## 6. Traning Workflow
 
 ## Training workflow (current)
 
@@ -211,4 +299,6 @@ The environment subtracts penalties from the rubric reward to prevent agents fro
 | **self_assessment_inflation** | Self-rating is much higher than the computed quality score. | Prevents confidence gaming. | **0.08** |
 | **keyword_stuffing** | Excessive repetition of rubric keywords. | Stops agents from earning reward through token spam. | **0.10–0.20** |
 | **low_task_alignment** | Response has very low overlap with the actual prompt details. | Prevents generic LLM answers unrelated to the task. | **0.06** |
+## Deployed environment
 
+- Hugging Face Space: [https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env](https://huggingface.co/spaces/jeeya-ahuja05/skill-graph-adaptive-env)
